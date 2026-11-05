@@ -1,0 +1,14 @@
+# ROS 1 compatible /set_velocity for teleop.html and blocks; forwarded to
+# flight/set_velocity (technic_interfaces/srv/SetVelocity), valid for the web_api
+# parameter velocity_valid_for (0.5 s): repeat the call to keep moving.
+# yaw is a heading in frame_id ("body": relative to the current heading), NaN keeps it.
+# auto_arm is not supported: take off first.
+float32 vx
+float32 vy
+float32 vz
+float32 yaw
+string frame_id
+bool auto_arm
+---
+bool success
+string message

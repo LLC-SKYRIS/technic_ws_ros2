@@ -1,0 +1,5 @@
+# ROS 1 compatible /set_yaw_rate for console.html.
+float32 yaw_rate
+---
+bool success
+string message

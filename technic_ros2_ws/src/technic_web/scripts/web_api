@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""ROS 1 style services for the Technic web pages, on top of the ROS 2 flight API.
+
+The pages call these services through rosbridge exactly as they called
+simple_offboard, shell and genmap_runner in ROS 1:
+
+  /navigate        technic_web/srv/Navigate      -> flight/navigate_to action
+  /land            std_srvs/srv/Trigger          -> flight/land action
+  /get_telemetry   technic_web/srv/GetTelemetry  <- flight/telemetry, flight/state, TF
+  /set_velocity    technic_web/srv/SetVelocity   -> flight/set_velocity
+  /set_yaw_rate    technic_web/srv/SetYawRate    -> flight/set_velocity
+  /exec            technic_web/srv/Execute       shell command (console.html)
+  /genmap          technic_web/srv/GenMap        ArUco map file in technic_aruco/map
+
+As in ROS 1, /navigate and /land return once the goal is accepted; a new
+command preempts the running one.
+"""
+
+import math
+import os
+import re
+import subprocess
+import threading
+
+import rclpy
+import rclpy.time
+from rclpy.action import ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+
+from action_msgs.msg import GoalStatus
+from std_srvs.srv import Trigger
+from technic_interfaces.action import Land, NavigateTo
+from technic_interfaces.msg import FlightState, Telemetry
+from technic_interfaces.srv import SetVelocity as FlightSetVelocity
+from technic_web.srv import Execute, GenMap, GetTelemetry, Navigate, SetVelocity, SetYawRate
+
+TERMINAL = (GoalStatus.STATUS_SUCCEEDED, GoalStatus.STATUS_CANCELED, GoalStatus.STATUS_ABORTED)
+
+
+def finite(value, default=0.0):
+    """rosbridge sends NaN as a bare token that breaks JSON.parse in the browser."""
+    return value if math.isfinite(value) else default
+
+
+def quaternion_to_euler(q):
+    sinr = 2.0 * (q.w * q.x + q.y * q.z)
+    cosr = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+    sinp = max(-1.0, min(1.0, 2.0 * (q.w * q.y - q.z * q.x)))
+    siny = 2.0 * (q.w * q.z + q.x * q.y)
+    cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+    return math.atan2(sinr, cosr), math.asin(sinp), math.atan2(siny, cosy)
+
+
+# ---------------------------------------------------------------- genmap
+
+GENMAP_USAGE = ('<length> <x> <y> <dist_x> <dist_y> [<first>] [<x0>] [<y0>] '
+                '[--top-left | --bottom-left] [-o <filename>]')
+
+
+def _number(token):
+    """genmap_runner normalization: "0,33", "0.33m", "330 mm" -> "0.33" style tokens."""
+    token = str(token).replace(' ', ' ').strip().replace(' ', '').replace(',', '.')
+    return re.sub(r'(m|cm|mm|мм)$', '', token, flags=re.IGNORECASE)
+
+
+def generate_map(args):
+    """Return (map file name, text) for genmap.py arguments; raise ValueError on bad input."""
+    positional, bottom_left, filename = [], False, 'test_map.txt'
+    it = iter(args)
+    for arg in it:
+        arg = str(arg).strip()
+        if not arg:
+            continue
+        if arg == '-o':
+            filename = next(it, '').strip() or filename
+        elif arg == '--bottom-left':
+            bottom_left = True
+        elif arg == '--top-left':
+            bottom_left = False
+        elif arg.startswith('--'):
+            raise ValueError('unknown option %s (expected --top-left or --bottom-left)' % arg)
+        else:
+            positional.append(_number(arg))
+    if not 5 <= len(positional) <= 8:
+        raise ValueError('expected 5 to 8 numbers: ' + GENMAP_USAGE)
+    try:
+        length = float(positional[0])
+        markers_x, markers_y = int(positional[1]), int(positional[2])
+        dist_x, dist_y = float(positional[3]), float(positional[4])
+        first = int(positional[5]) if len(positional) > 5 else 0
+        x0 = float(positional[6]) if len(positional) > 6 else 0.0
+        y0 = float(positional[7]) if len(positional) > 7 else 0.0
+    except ValueError:
+        raise ValueError('not a number in %s; usage: %s' % (' '.join(positional), GENMAP_USAGE))
+    if length <= 0 or markers_x <= 0 or markers_y <= 0:
+        raise ValueError('length and marker counts must be positive')
+    if os.path.basename(filename) != filename or not filename.endswith('.txt'):
+        raise ValueError('map file must be a plain name ending with .txt: %r' % filename)
+
+    lines = ['# id\tlength\tx\ty\tz\trot_z\trot_y\trot_x']
+    max_y = y0 + (markers_y - 1) * dist_y
+    for y in range(markers_y):
+        for x in range(markers_x):
+            pos_x = x0 + x * dist_x
+            pos_y = y0 + y * dist_y
+            if not bottom_left:
+                pos_y = max_y - pos_y
+            lines.append('\t'.join(str(v) for v in (first, length, pos_x, pos_y, 0, 0, 0, 0)))
+            first += 1
+    return filename, '\n'.join(lines) + '\n'
+
+
+# ---------------------------------------------------------------- node
+
+class WebApi(Node):
+
+    def __init__(self):
+        super().__init__('web_api')
+        self.group = ReentrantCallbackGroup()
+        self.default_speed = self.declare_parameter('default_speed', 0.5).value
+        self.exec_timeout = self.declare_parameter('exec_timeout', 60.0).value
+        self.velocity_valid_for = self.declare_parameter('velocity_valid_for', 0.5).value
+        self.map_dir = self.declare_parameter('map_dir', '').value
+        self.local_frame = self.declare_parameter('local_frame', 'map').value
+        self.body_frame = self.declare_parameter('body_frame', 'base_link').value
+
+        self.lock = threading.Lock()
+        self.goal = None              # (kind, ClientGoalHandle) of the running command
+        self.telemetry = None
+        self.state = None
+
+        self.navigate_client = ActionClient(
+            self, NavigateTo, 'flight/navigate_to', callback_group=self.group)
+        self.land_client = ActionClient(self, Land, 'flight/land', callback_group=self.group)
+        self.velocity_client = self.create_client(
+            FlightSetVelocity, 'flight/set_velocity', callback_group=self.group)
+
+        self.create_subscription(
+            Telemetry, 'flight/telemetry', self._on_telemetry, qos_profile_sensor_data,
+            callback_group=self.group)
+        self.create_subscription(
+            FlightState, 'flight/state', self._on_state,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL),
+            callback_group=self.group)
+
+        try:
+            import tf2_ros
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        except ImportError:
+            self.tf_buffer = None
+
+        for name, srv_type, handler in (
+            ('/navigate', Navigate, self._navigate),
+            ('/land', Trigger, self._land),
+            ('/get_telemetry', GetTelemetry, self._get_telemetry),
+            ('/set_velocity', SetVelocity, self._set_velocity),
+            ('/set_yaw_rate', SetYawRate, self._set_yaw_rate),
+            ('/exec', Execute, self._exec),
+            ('/genmap', GenMap, self._genmap),
+        ):
+            self.create_service(srv_type, name, handler, callback_group=self.group)
+        self.get_logger().info('web_api: ready')
+
+    # ------------------------------------------------------------ helpers
+
+    def _on_telemetry(self, msg):
+        self.telemetry = msg
+
+    def _on_state(self, msg):
+        self.state = msg
+
+    @staticmethod
+    def _wait(future, timeout):
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(timeout):
+            return None
+        return future.result()
+
+    def _cancel_running(self):
+        """Cancel the command started from the web and wait until the flight manager is free."""
+        with self.lock:
+            running, self.goal = self.goal, None
+        if running is None:
+            return
+        _, handle = running
+        if handle.status in TERMINAL:
+            return
+        self._wait(handle.cancel_goal_async(), 2.0)
+        result = handle.get_result_async()
+        self._wait(result, 3.0)
+
+    def _send_goal(self, kind, client, goal, timeout=3.0):
+        """Send a goal, retrying while the flight manager finishes a preempted command."""
+        if not client.wait_for_server(timeout_sec=1.0):
+            return False, 'flight/%s action server is not available (flight_manager with enable_flight:=true?)' % kind
+        self._cancel_running()
+        deadline = self.get_clock().now().nanoseconds + int(timeout * 1e9)
+        while True:
+            handle = self._wait(client.send_goal_async(goal), 2.0)
+            if handle is not None and handle.accepted:
+                with self.lock:
+                    self.goal = (kind, handle)
+                return True, kind + ' goal accepted'
+            if self.get_clock().now().nanoseconds > deadline:
+                reason = self.state.status_message if self.state is not None else ''
+                return False, 'flight manager rejected ' + kind + (': ' + reason if reason else '')
+            threading.Event().wait(0.2)
+
+    # ------------------------------------------------------------ services
+
+    def _navigate(self, req, res):
+        goal = NavigateTo.Goal()
+        goal.x, goal.y, goal.z = float(req.x), float(req.y), float(req.z)
+        goal.yaw = float(req.yaw)
+        goal.speed = float(req.speed) if req.speed > 0 else self.default_speed
+        goal.frame_id = req.frame_id
+        goal.auto_arm = req.auto_arm
+        if not all(math.isfinite(v) for v in (goal.x, goal.y, goal.z, goal.speed)):
+            res.success, res.message = False, 'x, y, z and speed must be finite'
+            return res
+        res.success, res.message = self._send_goal('navigate_to', self.navigate_client, goal)
+        return res
+
+    def _land(self, req, res):
+        res.success, res.message = self._send_goal('land', self.land_client, Land.Goal())
+        return res
+
+    def _get_telemetry(self, req, res):
+        frame = req.frame_id or self.local_frame
+        res.frame_id = frame
+        t, s = self.telemetry, self.state
+        if s is not None:
+            res.connected, res.armed, res.mode = s.connected, s.armed, s.autopilot_mode
+        if t is None:
+            return res
+        res.connected, res.armed, res.mode = t.connected, t.armed, t.autopilot_mode
+        res.voltage = finite(t.battery_voltage)
+        if t.global_position_valid:
+            res.lat, res.lon, res.alt = finite(t.latitude), finite(t.longitude), finite(t.altitude)
+        res.vx, res.vy, res.vz = (finite(v) for v in (t.twist.linear.x, t.twist.linear.y, t.twist.linear.z))
+        res.roll_rate, res.pitch_rate, res.yaw_rate = (
+            finite(v) for v in (t.twist.angular.x, t.twist.angular.y, t.twist.angular.z))
+        roll, pitch, yaw = quaternion_to_euler(t.pose.orientation)
+        res.roll, res.pitch = finite(roll), finite(pitch)
+        if frame == self.local_frame:
+            p = t.pose.position
+            res.x, res.y, res.z, res.yaw = finite(p.x), finite(p.y), finite(p.z), finite(yaw)
+            return res
+        if self.tf_buffer is None:
+            return res
+        try:
+            tf = self.tf_buffer.lookup_transform(frame, self.body_frame, rclpy.time.Time())
+        except Exception as e:  # tf2 raises several lookup exception types
+            self.get_logger().warn('get_telemetry: %s' % e, throttle_duration_sec=5.0)
+            res.frame_id = ''
+            return res
+        p = tf.transform.translation
+        res.x, res.y, res.z = finite(p.x), finite(p.y), finite(p.z)
+        res.yaw = finite(quaternion_to_euler(tf.transform.rotation)[2])
+        return res
+
+    def _forward_velocity(self, vx, vy, vz, yaw, yaw_rate, frame_id):
+        if not self.velocity_client.service_is_ready():
+            return False, 'flight/set_velocity is not available (flight_manager is not running?)'
+        # As ROS 1 set_velocity: a velocity command replaces the running navigate/land
+        # of the web pages (flight_manager rejects velocities while an action runs).
+        self._cancel_running()
+        req = FlightSetVelocity.Request()
+        req.vx, req.vy, req.vz = float(vx), float(vy), float(vz)
+        req.yaw, req.yaw_rate = float(yaw), float(yaw_rate)
+        req.frame_id = frame_id
+        req.valid_for.sec = int(self.velocity_valid_for)
+        req.valid_for.nanosec = int((self.velocity_valid_for % 1.0) * 1e9)
+        result = self._wait(self.velocity_client.call_async(req), 1.0)
+        if result is None:
+            return False, 'flight/set_velocity did not answer'
+        return result.success, result.message
+
+    def _set_velocity(self, req, res):
+        # ROS 1 yaw is a heading in frame_id; in "body" 0 keeps the current heading.
+        res.success, res.message = self._forward_velocity(
+            req.vx, req.vy, req.vz, req.yaw, math.nan, req.frame_id or 'body')
+        return res
+
+    def _set_yaw_rate(self, req, res):
+        res.success, res.message = self._forward_velocity(
+            0.0, 0.0, 0.0, math.nan, req.yaw_rate, 'body')
+        return res
+
+    def _exec(self, req, res):
+        self.get_logger().info('exec: %s' % req.cmd)
+        try:
+            # start_new_session: background jobs started with nohup ... & keep
+            # running and do not hold the pipe open after the shell exits.
+            proc = subprocess.run(
+                req.cmd, shell=True, executable='/bin/bash', stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                timeout=self.exec_timeout, start_new_session=True)
+        except subprocess.TimeoutExpired as e:
+            res.output = (e.stdout or b'').decode('utf-8', 'replace')
+            res.code = Execute.Request.CODE_TIMEOUT
+            return res
+        except OSError as e:
+            res.output, res.code = str(e), Execute.Request.CODE_FAIL
+            return res
+        res.output = proc.stdout.decode('utf-8', 'replace')
+        res.code = proc.returncode
+        return res
+
+    def _genmap(self, req, res):
+        try:
+            filename, text = generate_map(req.args)
+            map_dir = self.map_dir
+            if not map_dir:
+                from ament_index_python.packages import get_package_share_directory
+                map_dir = os.path.join(get_package_share_directory('technic_aruco'), 'map')
+            path = os.path.join(map_dir, filename)
+            with open(path, 'w') as f:
+                f.write(text)
+        except (ValueError, OSError, LookupError) as e:
+            res.success, res.message = False, str(e)
+            return res
+        res.success = True
+        res.message = '%s: %d markers\n%s' % (path, text.count('\n') - 1, text)
+        return res
+
+
+def main():
+    rclpy.init()
+    node = WebApi()
+    executor = MultiThreadedExecutor(num_threads=8)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()

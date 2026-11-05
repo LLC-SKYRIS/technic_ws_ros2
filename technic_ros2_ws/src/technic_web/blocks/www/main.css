@@ -1,0 +1,195 @@
+body, html {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-areas:
+        "tabs tools"
+        "content content";
+    grid-template-rows: min-content 1fr;
+    grid-template-columns: 1fr min-content ;
+    font-family: sans-serif;
+    font-size: 16px;
+
+    /* → Темная тема */
+    background-color: #0c0c0e;
+    color: #e7e7ea;
+}
+
+#tools, #tabs {
+    background: #1b1c1f;
+    border-bottom: 2px #2a2b2f solid;
+    white-space: nowrap;
+}
+
+#tools {
+    grid-area: tools;
+    white-space: nowrap;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+}
+
+#program-name {
+    width: 150px;
+    border: none;
+    font-size: 14px;
+    padding: 5px;
+    outline: none;
+    background: transparent;
+    text-overflow: ellipsis;
+    color: #e7e7ea; /* текст программы тоже светлый */
+}
+
+#program-name:focus {
+    background: #2a2b2f;
+}
+
+.changed #program-name {
+    color: #ff6666;
+}
+
+.disconnected {
+    color: #ff5555;
+    margin-right: 20px;
+}
+
+.connected .disconnected { display: none; }
+
+.backend-fail {
+    margin-right: 20px;
+    display: none;
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+#running {
+    color: #55ff55;
+    margin-right: 20px;
+    animation: 1s blink linear infinite;
+    display: none;
+}
+
+.running #running { display: block; }
+
+#tools button {
+    font-size: 20px;
+    margin-left: 10px;
+    background: #2a2b2f;
+    border: none;
+    color: #e7e7ea;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#tools button:hover {
+    background: #34353a;
+}
+
+#tabs {
+    grid-area: tabs;
+    list-style: none;
+    margin: 0;
+    padding: 10px;
+}
+
+#tabs li {
+    font-size: 18px;
+    display: inline-block;
+    padding: 5px 10px;
+    cursor: pointer;
+    background: #1b1c1f;
+    color: #e7e7ea;
+    margin-right: 8px;
+    border-radius: 8px;
+}
+
+#tabs li.selected {
+    background: #2a2b2f;
+    color: #2ea0ff;
+}
+
+#run {
+    width: 70px;
+}
+
+#notifications {
+    position: absolute;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    max-width: 350px;
+    top: 53px;
+    z-index: 1;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 16px;
+    white-space: pre;
+    max-height: 400px;
+    overflow: scroll;
+}
+
+#notifications:empty { display: none; }
+
+.content {
+    display: none !important;
+    grid-area: content;
+}
+
+body[data-tab="blocks"] #blockly { display: block !important; }
+body[data-tab="python"] #python { display: block !important; }
+
+#python {
+    margin: 0px;
+    padding: 10px;
+    z-index: 999999;
+    font-family: monospace;
+    color: #e7e7ea;
+    background: #111;
+}
+/* Контейнер блокли */
+#blockly {
+  background: #0c0c0e !important;
+}
+
+/* Сам SVG-канвас рабочей области */
+.blocklySvg,
+.blocklyMainBackground {
+  background-color: #0c0c0e !important;
+  fill: #0c0c0e !important;
+}
+
+/* Левая колонка с категориями (toolbox) */
+.blocklyToolboxDiv {
+  background: #1b1c1f !important;
+  color: #e7e7ea !important;
+}
+
+/* Выпадающий список блоков (flyout) */
+.blocklyFlyoutBackground,
+.blocklyFlyout .blocklyBackground {
+  fill: #1b1c1f !important;
+}
+
+/* Текст и строки в тулбоксе/флайауте */
+.blocklyTreeLabel,
+.blocklyFlyoutLabelText {
+  color: #e7e7ea !important;
+  fill: #e7e7ea !important;
+}
+
+/* Скроллбары */
+.blocklyScrollbarHandle,
+.blocklyScrollbarHorizontal .blocklyScrollbarHandle,
+.blocklyScrollbarVertical .blocklyScrollbarHandle {
+  fill: #3a3c41 !important;
+}

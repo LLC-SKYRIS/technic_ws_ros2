@@ -1,0 +1,56 @@
+flight_manager:
+  ros__parameters:
+    use_sim_time: false
+
+    autopilot:
+      # px4_dds: uXRCE-DDS (/fmu/*, SITL); mavros: MAVLink via mavros (hardware,
+      # set by hardware_flight.launch.py).
+      backend: px4_dds
+
+    mavros:
+      # mavros_node in namespace "mavros" puts its topics under /mavros/mavros/.
+      namespace: /mavros/mavros
+      # mavros/state comes with the PX4 heartbeat at 1 Hz.
+      status_timeout: 3.0
+      position_timeout: 0.5
+
+    px4:
+      topic_prefix: ""
+      # Vision pose (ENU, base_link in map) forwarded to /fmu/in/vehicle_visual_odometry.
+      vision_pose_topic: vision_pose/pose
+      target_system: 1
+      target_component: 1
+      status_timeout: 2.0
+
+    frames:
+      # Local ENU frame of PX4 position; body/navigate_target are published to TF.
+      local: map
+      base_link: base_link
+      body: body
+      navigate_target: navigate_target
+      transform_timeout: 0.5
+      publish_tf: true
+      tf_rate: 50.0
+
+    offboard:
+      # PX4 requires more than 2 Hz. Ten Hz gives margin without needless load.
+      heartbeat_hz: 10.0
+      prestream_seconds: 1.0
+
+    flight:
+      takeoff_speed: 0.5
+      takeoff_timeout: 30.0
+      navigate_timeout: 60.0
+      land_timeout: 60.0
+      # Time PX4 has to confirm the Offboard mode switch and arming (as in ROS 1).
+      offboard_timeout: 3.0
+      arming_timeout: 4.0
+      position_tolerance: 0.15
+
+    velocity:
+      # flight/set_velocity: largest accepted speed (norm of vx, vy, vz), m/s;
+      # 0 disables the check.
+      max_speed: 3.0
+
+    safety:
+      allow_disarm_command: false

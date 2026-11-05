@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Управление — Technic</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+    <style>
+        :root{
+            --bg:#050608;
+            --text:#f2f4f7;
+            --muted:#b6bcc6;
+            --accent:#2ea0ff;
+            --danger:#ff4d67;
+            --ok:#49e58b;
+            --glass:rgba(10,12,16,.48);
+            --glass-strong:rgba(10,12,16,.68);
+            --line:rgba(255,255,255,.16);
+            --space:clamp(8px,1.3vw,18px);
+            --safe-top:max(var(--space), env(safe-area-inset-top));
+            --safe-bottom:max(var(--space), env(safe-area-inset-bottom));
+            --safe-left:max(var(--space), env(safe-area-inset-left));
+            --safe-right:max(var(--space), env(safe-area-inset-right));
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0}
+
+        html,body{
+            width:100%;
+            height:100%;
+            overflow:hidden;
+            background:#000;
+        }
+
+        body{
+            color:var(--text);
+            font:15px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif;
+            height:100dvh;
+            touch-action:none;
+            user-select:none;
+            -webkit-user-select:none;
+            -webkit-touch-callout:none;
+            position:relative;
+            overscroll-behavior:none;
+        }
+
+        /* Камера — полноценный фон. Интерфейс не должен занимать половину кадра. */
+        #camera-view{
+            position:fixed;
+            inset:0;
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            background:#000;
+            z-index:0;
+        }
+
+        /* Небольшое затемнение по краям повышает читаемость HUD, но центр кадра
+           остаётся максимально открытым. */
+        body::after{
+            content:"";
+            position:fixed;
+            inset:0;
+            z-index:0;
+            pointer-events:none;
+            background:
+                linear-gradient(180deg,rgba(0,0,0,.48) 0%,rgba(0,0,0,.08) 25%,rgba(0,0,0,.03) 55%,rgba(0,0,0,.46) 100%),
+                linear-gradient(90deg,rgba(0,0,0,.25) 0%,transparent 22%,transparent 78%,rgba(0,0,0,.25) 100%);
+        }
+
+        .wrap{
+            position:fixed;
+            inset:0;
+            z-index:1;
+            pointer-events:none;
+        }
+
+        /* ===================== TOP HUD ===================== */
+        .top-stack{
+            position:fixed;
+            top:var(--safe-top);
+            left:var(--safe-left);
+            right:var(--safe-right);
+            z-index:4;
+            pointer-events:none;
+        }
+
+        header{
+            min-height:58px;
+            width:100%;
+            display:grid;
+            grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
+            gap:clamp(8px,1vw,16px);
+            padding:9px 14px;
+            border:1px solid rgba(255,255,255,.11);
+            border-radius:22px;
+            background:var(--glass-strong);
+            backdrop-filter:blur(12px) saturate(120%);
+            -webkit-backdrop-filter:blur(12px) saturate(120%);
+            box-shadow:0 10px 30px rgba(0,0,0,.24);
+            pointer-events:auto;
+            overflow:visible;
+        }
+
+        .header-left{
+            min-width:0;
+        }
+
+        h1{
+            font-size:clamp(17px,2vw,25px);
+            line-height:1.05;
+            font-weight:600;
+            color:#f0f2f5;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+
+        .muted{
+            color:var(--muted);
+        }
+
+        #ros-status{
+            margin-top:4px;
+            font-size:clamp(10px,1.15vw,13px);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+
+        .arm-indicator{
+            font-weight:800;
+            margin-left:8px;
+            letter-spacing:.02em;
+        }
+
+        /* Большой заряд в центре верхней плашки. */
+        .battery-center{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            min-width:170px;
+            flex:0 0 auto;
+            padding:3px 20px;
+            text-align:center;
+            position:relative;
+            z-index:1;
+        }
+
+        .battery-label{
+            display:block;
+            color:var(--muted);
+            font-size:11px;
+            text-transform:uppercase;
+            letter-spacing:.12em;
+        }
+
+        #battery-status{
+            display:block;
+            margin-top:1px;
+            font-size:clamp(21px,2.8vw,34px);
+            line-height:1;
+            font-weight:750;
+            font-variant-numeric:tabular-nums;
+            color:#fff;
+            text-shadow:0 2px 12px rgba(0,0,0,.45);
+            white-space:nowrap;
+        }
+
+        .header-right{
+            display:flex;
+            align-items:center;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+            gap:7px;
+            min-width:0;
+            max-width:100%;
+        }
+
+        .telemetry-panel{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            color:var(--muted);
+            font-size:clamp(11px,1.2vw,14px);
+            white-space:nowrap;
+        }
+
+        #altitude-status{
+            padding:7px 10px;
+            border:1px solid rgba(255,255,255,.11);
+            border-radius:12px;
+            background:rgba(255,255,255,.045);
+            font-variant-numeric:tabular-nums;
+        }
+
+        .camera-switch-btn,
+        .arm-hint-btn{
+            appearance:none;
+            border:1px solid rgba(255,255,255,.22);
+            background:rgba(28,31,37,.78);
+            color:#f0f2f5;
+            cursor:pointer;
+            backdrop-filter:blur(8px);
+            -webkit-backdrop-filter:blur(8px);
+            transition:transform .12s ease,background .12s ease,border-color .12s ease;
+        }
+
+        .camera-switch-btn{
+            border-radius:12px;
+            padding:8px 13px;
+            font-size:clamp(11px,1.2vw,14px);
+            white-space:nowrap;
+            flex:0 0 auto;
+        }
+
+        .arm-hint-btn{
+            width:36px;
+            min-width:36px;
+            height:36px;
+            min-height:36px;
+            flex:0 0 36px;
+            border-radius:50%;
+            font-size:16px;
+            font-weight:750;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }
+
+        .camera-switch-btn:active,
+        .arm-hint-btn:active{
+            transform:scale(.96);
+            background:rgba(55,60,70,.9);
+        }
+
+        /* Навигация — полноценные кнопки, а не обычные ссылки. */
+        .header-link{
+            appearance:none;
+            -webkit-appearance:none;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            flex:0 0 auto;
+            min-height:36px;
+            max-width:clamp(145px,14vw,205px);
+            padding:7px 11px;
+            border:1px solid rgba(255,255,255,.18);
+            border-radius:11px;
+            background:rgba(28,31,37,.78);
+            color:#f0f2f5;
+            text-decoration:none;
+            font-weight:650;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            font-size:clamp(10px,1.1vw,13px);
+            line-height:1;
+            cursor:pointer;
+            backdrop-filter:blur(8px);
+            -webkit-backdrop-filter:blur(8px);
+            box-shadow:0 4px 12px rgba(0,0,0,.18);
+            transition:transform .12s ease,background .12s ease,border-color .12s ease;
+        }
+
+        .header-link:visited{
+            color:#f0f2f5;
+        }
+
+        .header-link:hover{
+            background:rgba(55,60,70,.9);
+            border-color:rgba(255,255,255,.30);
+        }
+
+        .header-link:active{
+            transform:scale(.97);
+            background:rgba(70,76,88,.95);
+        }
+
+        .header-link:focus-visible{
+            outline:2px solid rgba(46,160,255,.9);
+            outline-offset:2px;
+        }
+
+        /* ===================== JOYSTICKS ===================== */
+        /*
+         * Важное изменение: "card" больше не является большой непрозрачной панелью.
+         * Он существует только как геометрический контейнер HUD.
+         * pointer-events у карточки выключены, а реальные события получает только
+         * круг джойстика — поэтому камера под остальной площадью остаётся доступной.
+         */
+        .card{
+            background:transparent;
+            border:0;
+            box-shadow:none;
+            padding:0;
+            overflow:visible;
+        }
+
+        .joystick-card{
+            position:fixed;
+            bottom:var(--safe-bottom);
+            z-index:5;
+            width:min(310px,30vw);
+            min-width:210px;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:6px;
+            pointer-events:none;
+        }
+
+        .joystick-card.left{left:var(--safe-left)}
+        .joystick-card.right{right:var(--safe-right)}
+
+        .title{
+            order:0;
+            padding:5px 10px;
+            border:1px solid rgba(255,255,255,.10);
+            border-radius:10px;
+            background:rgba(5,7,10,.42);
+            backdrop-filter:blur(7px);
+            -webkit-backdrop-filter:blur(7px);
+            color:rgba(245,247,250,.9);
+            font-size:clamp(10px,1.15vw,13px);
+            font-weight:600;
+            text-align:center;
+            text-shadow:0 1px 4px #000;
+            pointer-events:none;
+        }
+
+        .joystick-container{
+            position:relative;
+            width:min(245px,28vw,31vh);
+            height:min(245px,28vw,31vh);
+            min-width:155px;
+            min-height:155px;
+            flex:0 0 auto;
+            border-radius:50%;
+            background:rgba(8,11,16,.24);
+            border:2px solid rgba(46,160,255,.92);
+            box-shadow:
+                0 0 0 1px rgba(0,0,0,.25),
+                0 0 25px rgba(46,160,255,.16),
+                inset 0 0 30px rgba(0,0,0,.18);
+            backdrop-filter:blur(2px);
+            -webkit-backdrop-filter:blur(2px);
+            pointer-events:auto;
+            touch-action:none;
+        }
+
+        .joystick-container::before{
+            content:"";
+            position:absolute;
+            inset:17%;
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:50%;
+            pointer-events:none;
+        }
+
+        .joystick-container::after{
+            content:"";
+            position:absolute;
+            left:50%;
+            top:50%;
+            width:1px;
+            height:72%;
+            transform:translate(-50%,-50%);
+            background:rgba(255,255,255,.08);
+            box-shadow:0 0 0 0 rgba(255,255,255,0);
+            pointer-events:none;
+        }
+
+        .joystick-base{
+            position:absolute;
+            top:50%;
+            left:50%;
+            width:39%;
+            height:39%;
+            border-radius:50%;
+            transform:translate(-50%,-50%);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:radial-gradient(circle at 32% 28%,#59606a 0%,#30343b 48%,#1a1d23 100%);
+            border:2px solid rgba(255,70,100,.95);
+            box-shadow:
+                0 0 18px rgba(255,50,85,.34),
+                inset 0 0 15px rgba(255,255,255,.06);
+            color:rgba(255,255,255,.94);
+            font-size:clamp(18px,2vw,26px);
+            cursor:grab;
+            touch-action:none;
+            will-change:transform;
+        }
+
+        .joystick-base.active{
+            cursor:grabbing;
+            border-color:#43ff9b;
+            box-shadow:
+                0 0 24px rgba(67,255,155,.42),
+                inset 0 0 15px rgba(255,255,255,.07);
+        }
+
+        .joystick-values{
+            display:flex;
+            gap:10px;
+            padding:4px 9px;
+            border-radius:9px;
+            background:rgba(5,7,10,.42);
+            backdrop-filter:blur(6px);
+            -webkit-backdrop-filter:blur(6px);
+            color:rgba(240,243,247,.82);
+            font-size:clamp(10px,1.1vw,13px);
+            font-variant-numeric:tabular-nums;
+            pointer-events:none;
+        }
+
+        /* ===================== CENTER STATUS ===================== */
+        .status-bar{
+            position:fixed;
+            left:50%;
+            bottom:var(--safe-bottom);
+            transform:translateX(-50%);
+            z-index:4;
+            width:max-content;
+            max-width:min(42vw,430px);
+            padding:8px 13px;
+            border:1px solid rgba(255,255,255,.13);
+            border-radius:13px;
+            background:rgba(5,7,10,.58);
+            backdrop-filter:blur(9px);
+            -webkit-backdrop-filter:blur(9px);
+            color:#f0f2f5;
+            text-align:center;
+            font-size:clamp(10px,1.1vw,13px);
+            box-shadow:0 7px 20px rgba(0,0,0,.2);
+            pointer-events:none;
+        }
+
+        /* ===================== HINT ===================== */
+        .hint-overlay{
+            display:none;
+            position:fixed;
+            inset:0;
+            z-index:20;
+            background:rgba(0,0,0,.58);
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            pointer-events:auto;
+        }
+
+        .hint-overlay.visible{display:flex}
+
+        .hint-box{
+            width:min(90vw,430px);
+            padding:20px;
+            border:1px solid rgba(255,255,255,.16);
+            border-radius:18px;
+            background:rgba(16,18,23,.94);
+            box-shadow:0 20px 50px rgba(0,0,0,.45);
+            color:var(--text);
+            font-size:14px;
+            line-height:1.5;
+            text-align:center;
+        }
+
+        /* ===================== PORTRAIT ===================== */
+        /*
+         * Нормальный режим полёта — landscape.
+         * screen.orientation.lock() используется дополнительно из JS, но браузер
+         * может запретить lock без fullscreen/user gesture. Поэтому есть CSS-заглушка.
+         */
+        #orientation-warning{
+            display:none;
+            position:fixed;
+            inset:0;
+            z-index:100;
+            background:#07090c;
+            color:#fff;
+            align-items:center;
+            justify-content:center;
+            text-align:center;
+            padding:30px;
+            pointer-events:auto;
+        }
+
+        .orientation-warning-box{
+            width:min(90vw,360px);
+            padding:25px 20px;
+            border:1px solid rgba(255,255,255,.14);
+            border-radius:20px;
+            background:rgba(22,25,31,.92);
+            box-shadow:0 20px 50px rgba(0,0,0,.45);
+        }
+
+        .orientation-icon{
+            font-size:48px;
+            margin-bottom:12px;
+        }
+
+        .orientation-warning-box strong{
+            display:block;
+            font-size:20px;
+            margin-bottom:8px;
+        }
+
+        .orientation-warning-box span{
+            color:var(--muted);
+            font-size:14px;
+        }
+
+        @media (orientation:portrait){
+            #orientation-warning{display:flex}
+            .wrap,#camera-view{visibility:hidden}
+        }
+
+        /* ===================== RESPONSIVE LANDSCAPE ===================== */
+        @media (max-height:520px){
+            :root{
+                --space:6px;
+            }
+
+            header{
+                min-height:44px;
+                padding:5px 8px;
+                border-radius:15px;
+                gap:8px;
+            }
+
+            h1{font-size:13px}
+            #ros-status{font-size:9px;margin-top:1px!important}
+            .battery-center{min-width:110px;padding:2px 8px}
+            .battery-label{font-size:8px}
+            #battery-status{font-size:20px}
+            .header-right{
+                gap:4px;
+                flex-wrap:nowrap;
+                justify-content:flex-end;
+            }
+
+            .telemetry-panel{font-size:9px;gap:4px}
+            #altitude-status{
+                padding:5px 7px;
+                flex:0 0 auto;
+            }
+
+            .camera-switch-btn{
+                padding:5px 8px;
+                font-size:9px;
+                flex:0 0 auto;
+            }
+
+            .arm-hint-btn{
+                width:28px;
+                min-width:28px;
+                height:28px;
+                min-height:28px;
+                padding:0;
+                flex:0 0 28px;
+                font-size:12px;
+            }
+
+            .header-link{
+                min-height:28px;
+                height:28px;
+                max-width:135px;
+                padding:5px 7px;
+                font-size:9px;
+                flex:0 1 auto;
+            }
+
+            .joystick-card{
+                width:min(240px,27vw);
+                min-width:165px;
+                gap:3px;
+            }
+
+            .joystick-container{
+                width:min(190px,27vw,39vh);
+                height:min(190px,27vw,39vh);
+                min-width:125px;
+                min-height:125px;
+            }
+
+            .title{font-size:9px;padding:3px 7px}
+            .joystick-values{font-size:9px;padding:2px 6px}
+            .status-bar{font-size:9px;padding:5px 9px}
+        }
+
+        .lbl-short{display:none}
+
+        @media (max-width:900px) and (orientation:landscape){
+            /* Узкий горизонтальный телефон: короткие подписи, правая часть по содержимому */
+            .h1-text,.lbl-full{display:none}
+            .lbl-short{display:inline}
+            .arm-indicator{margin-left:0}
+            header{
+                grid-template-columns:minmax(0,1fr) auto auto;
+                gap:6px;
+                padding:6px 8px;
+            }
+
+            .battery-center{
+                min-width:110px;
+                padding:2px 8px;
+            }
+
+            .header-right{
+                gap:4px;
+            }
+
+            .header-link{
+                max-width:118px;
+                min-height:30px;
+                padding:5px 6px;
+                font-size:9px;
+            }
+
+            .camera-switch-btn{
+                max-width:78px;
+                overflow:hidden;
+                text-overflow:ellipsis;
+            }
+
+            #altitude-status{
+                max-width:92px;
+                overflow:hidden;
+                text-overflow:ellipsis;
+            }
+        }
+
+                @media (min-width:1500px){
+            .joystick-container{
+                width:min(270px,27vw,34vh);
+                height:min(270px,27vw,34vh);
+            }
+        }
+
+        /* При заблокированном управлении джойстики визуально отключены. */
+        body.controls-locked .joystick-container{
+            pointer-events:none;
+            opacity:.32;
+            filter:saturate(.45);
+        }
+</style>
+</head>
+<body>
+<div id="orientation-warning" aria-hidden="true">
+    <div class="orientation-warning-box">
+        <div class="orientation-icon">↔</div>
+        <strong>Поверните устройство</strong>
+        <span>Интерфейс управления рассчитан на горизонтальную ориентацию.</span>
+    </div>
+</div>
+<img id="camera-view" alt="Камера дрона">
+<div class="wrap">
+    <div class="top-stack">
+        <header>
+            <div class="header-left">
+                <h1><span class="h1-text">Управление дроном </span><span class="arm-indicator" id="arm-indicator">DISARMED</span></h1>
+                <div class="muted" id="ros-status">ROS: подключение...</div>
+            </div>
+
+            <div class="battery-center" aria-label="Напряжение аккумулятора">
+                <div>
+                    <span class="battery-label">АККУМУЛЯТОР</span>
+                    <span id="battery-status">-- В</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="telemetry-panel">
+                    <div id="altitude-status">Высота: -- м</div>
+                </div>
+                <button type="button" class="arm-hint-btn" id="btn-arm-hint" aria-label="Как завести моторы">?</button>
+                <button type="button" class="camera-switch-btn" id="btn-camera-switch">Камера 2</button>
+                <a href="index.html" class="header-link"><span class="lbl-full">На главную</span><span class="lbl-short">Главная</span></a>
+                <a href="teleopa.html" class="header-link"><span class="lbl-full">Управление стрелочками</span><span class="lbl-short">Стрелки</span></a>
+            </div>
+        </header>
+    </div>
+
+    <div class="hint-overlay" id="hint-overlay">
+        <div class="hint-box">
+            Чтобы завести моторы: одновременно удерживайте левый стик (газ+рысканье) в нижнем правом углу,
+            а правый стик (крен/тангаж) — в нижнем левом углу, около 1 секунды.
+        </div>
+    </div>
+
+    <div class="card joystick-card left">
+        <div class="title">Высота / Поворот (WASD)</div>
+        <div class="joystick-container" id="container-left">
+            <div class="joystick-base" id="joystick-left">●</div>
+        </div>
+        <div class="joystick-values">
+            <span>Z: <span id="z-val">0.0</span></span>
+            <span>Yaw: <span id="yaw-val">0.0</span></span>
+        </div>
+    </div>
+    <div class="card joystick-card right">
+        <div class="title">Движение XY (Стрелки)</div>
+        <div class="joystick-container" id="container-right">
+            <div class="joystick-base" id="joystick-right">●</div>
+        </div>
+        <div class="joystick-values">
+            <span>X: <span id="x-val">0.0</span></span>
+            <span>Y: <span id="y-val">0.0</span></span>
+        </div>
+    </div>
+
+    <div class="status-bar" id="cmd-status">Ожидание команд...</div>
+</div>
+
+<script>
+    // Блокировка жестов браузера
+    document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', e => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) e.preventDefault();
+        lastTouchEnd = now;
+    }, { passive: false });
+
+    // ========== Ориентация устройства ==========
+    // Пытаемся заблокировать экран в landscape там, где браузер это разрешает.
+    // CSS-экран предупреждения остаётся запасным вариантом для браузеров,
+    // которые запрещают orientation.lock().
+    async function requestLandscape() {
+        try {
+            if (screen.orientation && screen.orientation.lock) {
+                await screen.orientation.lock('landscape');
+            }
+        } catch (e) {
+            // Firefox/iOS/обычный мобильный браузер может запретить lock без fullscreen.
+        }
+    }
+
+    document.addEventListener('fullscreenchange', requestLandscape);
+    window.addEventListener('resize', () => {
+        document.body.classList.toggle('portrait-mode', window.innerHeight > window.innerWidth);
+    });
+
+    // Запрашиваем lock после первого пользовательского взаимодействия.
+    window.addEventListener('pointerdown', () => requestLandscape(), { once: true });
+
+    // ========== ROS Setup ==========
+    const rosUrl = 'ws://' + location.hostname + ':9090';
+    const ros = new ROSLIB.Ros({ url: rosUrl });
+    const rosStatus = document.getElementById('ros-status');
+    const cmdStatus = document.getElementById('cmd-status');
+    const altitudeStatus = document.getElementById('altitude-status');
+    const batteryStatus = document.getElementById('battery-status');
+    const armIndicator = document.getElementById('arm-indicator');
+    const armHintBtn = document.getElementById('btn-arm-hint');
+    const hintOverlay = document.getElementById('hint-overlay');
+    armHintBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        hintOverlay.classList.add('visible');
+    });
+    // Клик в любую точку оверлея, КРОМЕ самой карточки подсказки — закрыть.
+    hintOverlay.addEventListener('click', e => {
+        if (e.target === hintOverlay) hintOverlay.classList.remove('visible');
+    });
+
+    // ========== Камера (MJPEG через web_video_server) ==========
+    const cameraImg = document.getElementById('camera-view');
+    const cameraSwitchBtn = document.getElementById('btn-camera-switch');
+    const videoBase = location.protocol + '//' + location.hostname + ':8080';
+    const CAMERA_TOPICS = ['/main_camera/image_raw', '/second_camera/second_camera/image_raw'];
+    const CAMERA_LABELS = ['Камера 2', 'Камера 1']; // текст кнопки = на что переключит
+    let cameraIndex = 0;
+
+    // web_video_server не раскодирует %2F в имени топика, поэтому слэши оставляем как есть
+    function wvsQuery(obj) {
+        return new URLSearchParams(obj).toString().replace(/%2F/gi, '/');
+    }
+    function cameraStreamUrl(topic) {
+        return videoBase + '/stream?' + wvsQuery({ topic: topic, type: 'mjpeg', quality: '50', width: '960' });
+    }
+    function setCamera(index) {
+        cameraIndex = index;
+        cameraImg.src = cameraStreamUrl(CAMERA_TOPICS[cameraIndex]);
+        cameraSwitchBtn.textContent = CAMERA_LABELS[cameraIndex];
+    }
+    cameraSwitchBtn.addEventListener('click', () => setCamera((cameraIndex + 1) % CAMERA_TOPICS.length));
+    setCamera(0);
+
+    function setRosState(text, className) {
+        rosStatus.textContent = text;
+        rosStatus.style.color = className === 'connected' ? '#4ade80' : className === 'closed' ? '#f87171' : '';
+    }
+    ros.on('connection', () => setRosState('ROS: подключено', 'connected'));
+    ros.on('error', err => setRosState('ROS error: ' + err, 'closed'));
+    ros.on('close', () => { setRosState('ROS: соединение закрыто', 'closed'); setTimeout(() => ros.connect(rosUrl), 2000); });
+
+    // Сервисы
+    // Пока хоть одна ось (vx/vy/vz/yaw) активна — весь control-loop идёт ОДНИМ вызовом
+    // set_velocity(vx,vy,vz,yaw) за тик, никакого чередования с другими режимами контроллера.
+    // На нейтрали (все оси = 0) set_velocity вообще не шлётся — там держит /navigate,
+    // см. controlMode/holdCurrentPosition() ниже.
+    const setVelocitySrv = new ROSLIB.Service({ ros, name: '/set_velocity', serviceType: 'technic_web/srv/SetVelocity' });
+    const setYawRateSrv = new ROSLIB.Service({ ros, name: '/set_yaw_rate', serviceType: 'technic_web/srv/SetYawRate' });
+    const telemetrySrv = new ROSLIB.Service({ ros, name: '/get_telemetry', serviceType: 'technic_web/srv/GetTelemetry' });
+    const navigateSrv = new ROSLIB.Service({ ros, name: '/navigate', serviceType: 'technic_web/srv/Navigate' });
+
+    const MAX_XY = 1, MAX_Z = 0.5, MAX_YAW = 0.3;
+    const TAKEOFF_ALTITUDE = 1.0;
+    let lastYaw=null,lastVel="";
+    let controlsLocked = false;
+    let currentAltitude = 0;
+    let isArmed = false;
+
+    // Единая точка блокировки/разблокировки ручного управления (на время автовзлёта).
+    // Гасит джойстики визуально (CSS pointer-events:none через класс на body) и обнуляет их,
+    // чтобы после разблокировки не осталось "залипшего" значения с зажатого стика.
+    function setControlsLocked(locked) {
+        controlsLocked = locked;
+        document.body.classList.toggle('controls-locked', locked);
+        if (locked) {
+            leftJoystick.resetJoystick();
+            rightJoystick.resetJoystick();
+            for (let k in keyState) keyState[k] = false;
+        }
+    }
+
+    function getTelemetry(frameId) {
+        return new Promise((resolve, reject) => {
+            telemetrySrv.callService(new ROSLIB.ServiceRequest({ frame_id: frameId }), resolve, e => reject(new Error(String(e))));
+        });
+    }
+
+    // Единая обёртка вызова /navigate: всегда приводит ошибку к Error с читаемым текстом,
+    // вместо "сырых" строк/undefined, которые roslib иногда отдаёт напрямую.
+    function callNavigate(req) {
+        return new Promise((resolve, reject) => {
+            navigateSrv.callService(
+                new ROSLIB.ServiceRequest(req),
+                res => {
+                    const ok = res && (res.success === true || res.success === 1);
+                    if (ok) resolve(res);
+                    else reject(new Error(res && res.message ? res.message : 'сервис /navigate вернул отказ'));
+                },
+                error => reject(new Error(String(error)))
+            );
+        });
+    }
+
+    async function updateTelemetry() {
+        try {
+            const telem = await getTelemetry('');
+            currentAltitude = Number.isFinite(telem.z) ? telem.z : currentAltitude;
+            altitudeStatus.textContent = 'Высота: ' + currentAltitude.toFixed(2) + ' м';
+            batteryStatus.textContent = 'Батарея: ' + (Number.isFinite(telem.voltage) ? telem.voltage.toFixed(2) : '--') + ' В';
+            if (telem.armed !== undefined) {
+                isArmed = telem.armed;
+                updateArmIndicator();
+            }
+        } catch(e) {}
+    }
+
+    function updateArmIndicator() {
+        armIndicator.textContent = isArmed ? 'ARMED' : 'DISARMED';
+        armIndicator.style.color = isArmed ? '#4ade80' : '#f87171';
+        // Кнопку подсказки прячем, как только моторы заведены — дальше она просто мешает.
+        armHintBtn.style.display = isArmed ? 'none' : '';
+        if (isArmed) hintOverlay.classList.remove('visible');
+    }
+
+    // Дизарм отдельно не делаем — дрон садится на землю газом и disarm'ится сам (по посадке FCU).
+    let armCallInProgress = false;
+    const ARM_BUSY_RETRY_MS = 300;
+    const ARM_BUSY_MAX_RETRIES = 5;
+
+    // Общая обёртка вызова /navigate с повтором при "Busy" — переиспользуется и армом, и взлётом.
+    async function callNavigateRetrying(req, statusPrefix) {
+        for (let attempt = 0; attempt <= ARM_BUSY_MAX_RETRIES; attempt++) {
+            try {
+                return await callNavigate(req);
+            } catch (e) {
+                const msg = (e && e.message) ? e.message : String(e);
+                if (/busy/i.test(msg) && attempt < ARM_BUSY_MAX_RETRIES) {
+                    cmdStatus.textContent = 'Занято, повтор (' + (attempt + 1) + '/' + ARM_BUSY_MAX_RETRIES + ')...';
+                    await new Promise(r => setTimeout(r, ARM_BUSY_RETRY_MS));
+                    continue;
+                }
+                throw new Error(statusPrefix + ': ' + msg);
+            }
+        }
+    }
+
+    // Удержание позиции больше не считается в JS (см. holdCurrentPosition() ниже) —
+    // вместо собственного P-регулятора теперь один вызов /navigate с нулевым смещением
+    // в frame_id:'body', и дальше держит сам полётный стек, как и во время взлёта.
+
+    // ===== Режим управления: MANUAL (стик/газ/рысканье отклонены — живой set_velocity) →
+    //       SETTLING (только что отпустили — секунду ждём, шлём нулевую скорость, чтобы не
+    //       выпасть из OFFBOARD по таймауту PX4) → HOLD (один вызов /navigate с нулевым
+    //       смещением, дальше держит сам полётный стек, так же как он уже держит взлёт) =====
+    let controlMode = 'HOLD';
+    let holdCallInFlight = false;
+    let holdDelayTimer = null;
+    const HOLD_DELAY_MS = 1000; // ждём секунду после отпускания стика, прежде чем звать /navigate
+
+    // Вызывается РОВНО ОДИН РАЗ, спустя HOLD_DELAY_MS после того как управление вернулось в
+    // нейтраль по всем осям — никакого повторяющегося цикла коррекции. frame_id:'body' + нулевые
+    // x/y/z/yaw означают "останься там, где сейчас" — тем же способом, что уже держит взлёт.
+    async function holdCurrentPosition() {
+        if (holdCallInFlight) return;
+        holdCallInFlight = true;
+        try {
+            await callNavigateRetrying(
+                { x: 0, y: 0, z: 0, yaw: 0, speed: 0.3, frame_id: 'body', auto_arm: false },
+                'Ошибка удержания позиции'
+            );
+        } catch (e) {
+            cmdStatus.textContent = (e && e.message) ? e.message : String(e);
+        } finally {
+            holdCallInFlight = false;
+        }
+    }
+
+    // Высота на нейтрали больше не держится собственной калибровкой тяги — при возврате
+    // газа в нейтраль срабатывает тот же holdCurrentPosition() (см. выше), который держит
+    // X, Y и Z одновременно средствами полётного стека.
+
+    async function armAndTakeoff() {
+        if (armCallInProgress || isArmed) return;
+        armCallInProgress = true;
+        try {
+            // 1. ARM
+            const armReq = { x: 0, y: 0, z: 1.0, yaw: 0, speed: 0.3, frame_id: 'body', auto_arm: true };
+            await callNavigateRetrying(armReq, 'Ошибка арма');
+            isArmed = true; // реальный статус придёт из телеметрии, это для оптимизма
+            updateArmIndicator();
+            cmdStatus.textContent = 'Моторы заармлены, взлёт...';
+
+            // 2. TAKEOFF на 1 м — на время автовзлёта ручное управление заблокировано
+            setControlsLocked(true);
+            const takeoffReq = { x: 0, y: 0, z: TAKEOFF_ALTITUDE, yaw: 0, speed: 0.5, frame_id: 'body', auto_arm: true };
+            await callNavigateRetrying(takeoffReq, 'Ошибка взлёта');
+            // Проверка успешного взлёта по телеметрии — оставлена без изменений.
+            for (let i = 0; i < 40; i++) {
+                const t = await getTelemetry('');
+                if (Number.isFinite(t.z) && t.z >= TAKEOFF_ALTITUDE - 0.1) break;
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            // 3. Взлёт завершён. Цель, которую мы только что дали /navigate (frame_id:'body',
+            // z:TAKEOFF_ALTITUDE), полётный стек продолжает держать сам без дополнительных
+            // команд — просто переключаемся в HOLD, ничего заново вызывать не нужно.
+            controlMode = 'HOLD';
+            cmdStatus.textContent = 'Взлёт выполнен, обычное управление';
+        } catch (e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            cmdStatus.textContent = 'Ошибка автовзлёта: ' + msg;
+        } finally {
+            setControlsLocked(false);
+            armCallInProgress = false;
+        }
+    }
+
+    // Мёртвая зона и экспоненциальная кривая стиков
+    const DEAD_ZONE = 0.08;   // доля хода стика, которая считается нулём
+    const EXPO = 0.4;         // 0 = линейно, 1 = кубическая экспонента (плавный старт, резкий разгон в конце)
+
+    function applyDeadzone(v) {
+        const av = Math.abs(v);
+        if (av <= DEAD_ZONE) return 0;
+        return Math.sign(v) * (av - DEAD_ZONE) / (1 - DEAD_ZONE);
+    }
+    function applyExpo(v) {
+        return (1 - EXPO) * v + EXPO * v * v * v;
+    }
+    function shapeAxis(v) {
+        return applyExpo(applyDeadzone(v));
+    }
+
+    // Единая точка отправки движения — X, Y, Z и yaw уходят ОДНИМ вызовом set_velocity за тик,
+    // только пока управление активно (см. controlMode в основном цикле ниже). Никакой базовой
+    // добавки к vz больше нет — на нейтрали высоту/позицию держит /navigate (holdCurrentPosition),
+    // а не JS.
+    // controlsLocked здесь по-прежнему НЕ проверяем — блокировка пользовательского ввода
+    // выполняется на уровне вызывающих циклов (setInterval и keydown ниже).
+    function sendVelocity(vx, vy, vz, yaw = 0) {
+        setVelocitySrv.callService(
+            new ROSLIB.ServiceRequest({
+                vx: vx,
+                vy: vy,
+                vz: vz,
+                yaw: yaw,
+                frame_id: 'body',
+                auto_arm: false
+            }),
+            res => {
+                if (!res.success)
+                    console.warn('set_velocity error:', res.message);
+            }
+        );
+    }
+
+    // Класс джойстика
+    class VelocityJoystick {
+        constructor(containerId, joystickId, xSpanId, ySpanId, options = {}) {
+            this.container = document.getElementById(containerId);
+            this.joystick = document.getElementById(joystickId);
+
+            this.xSpan = document.getElementById(xSpanId);
+            this.ySpan = document.getElementById(ySpanId);
+
+            // springX/springY: возвращается ли ось в 0 при отпускании (как пружина на джойстике)
+            // или сохраняет последнее положение (как газ на аппаратуре — мод throttle hold)
+            this.springX = options.springX !== undefined ? options.springX : true;
+            this.springY = options.springY !== undefined ? options.springY : true;
+
+            this.containerRadius = this.container.offsetWidth / 2;
+            this.joystickRadius = this.joystick.offsetWidth / 2;
+            this.maxDist = this.containerRadius - this.joystickRadius - 4;
+
+            this.normX = 0;
+            this.normY = 0;
+
+            this.isActive = false;
+
+            this.updateUI();
+            this.bindEvents();
+
+            window.addEventListener('resize', () => this.onResize());
+        }
+
+        updateUI() {
+            this.joystick.style.transform = `translate(calc(-50% + ${this.normX * this.maxDist}px), calc(-50% - ${this.normY * this.maxDist}px))`;
+            this.joystick.classList.toggle('active', this.isActive);
+            this.xSpan.textContent = this.normX.toFixed(1);
+            this.ySpan.textContent = this.normY.toFixed(1);
+        }
+
+        setFromClient(clientX, clientY) {
+            const rect = this.container.getBoundingClientRect();
+            const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+            let dx = clientX - cx, dy = clientY - cy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > this.maxDist) { dx *= this.maxDist / dist; dy *= this.maxDist / dist; }
+            this.normX = this.maxDist > 0 ? dx / this.maxDist : 0;
+            this.normY = this.maxDist > 0 ? -dy / this.maxDist : 0;
+            this.normX = Math.min(1, Math.max(-1, this.normX));
+            this.normY = Math.min(1, Math.max(-1, this.normY));
+            this.updateUI();
+        }
+
+        setFromKeyboard(nx, ny) {
+            this.normX = nx; this.normY = ny;
+            this.isActive = !!(nx || ny);
+            this.updateUI();
+        }
+
+        resetJoystick() {
+            if (this.springX) this.normX = 0;
+            if (this.springY) this.normY = 0;
+            this.isActive = false;
+            this.updateUI();
+        }
+
+        bindEvents() {
+            let activeTouchId = null;
+            const start = (clientX, clientY) => {
+                this.isActive = true;
+                this.setFromClient(clientX, clientY);
+            };
+            const move = (clientX, clientY) => {
+                if (!this.isActive) return;
+                this.setFromClient(clientX, clientY);
+            };
+            const end = () => {
+                if (!this.isActive) return;
+                this.isActive = false;
+                this.resetJoystick();
+            };
+
+            // Мышь — вешаем на контейнер, чтобы клик рядом с "пятаком" тоже подхватывал стик.
+            this.container.addEventListener('mousedown', e => { e.preventDefault(); start(e.clientX, e.clientY); });
+            window.addEventListener('mousemove', e => {
+                if (!this.isActive) return;
+                if ((e.buttons & 1) === 0) { end(); return; } // ЛКМ не зажата — движение мыши не должно управлять стиком
+                move(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', end);
+
+            // Touch — ВСЕ обработчики (start/move/end) вешаем на один и тот же элемент (контейнер).
+            // Баг "зависания" стика был из-за того, что touchstart на контейнере ловился, а
+            // touchend/touchmove были навешаны на маленький "пятак" joystick — при тапе не по
+            // пятаку браузер отправляет touchend на исходный target (контейнер), а не на пятак,
+            // и слушатель конца касания просто не срабатывал, оставляя стик "приклеенным".
+            this.container.addEventListener('touchstart', e => {
+                e.preventDefault();
+                const t = e.changedTouches[0];
+                activeTouchId = t.identifier;
+                start(t.clientX, t.clientY);
+            }, {passive: false});
+            this.container.addEventListener('touchmove', e => {
+                e.preventDefault();
+                for (let t of e.changedTouches) if (t.identifier === activeTouchId) move(t.clientX, t.clientY);
+            }, {passive: false});
+            const onTouchEnd = e => {
+                e.preventDefault();
+                for (let t of e.changedTouches) {
+                    if (t.identifier === activeTouchId) { end(); activeTouchId = null; break; }
+                }
+            };
+            this.container.addEventListener('touchend', onTouchEnd, {passive: false});
+            // touchcancel (жест ОС, входящий звонок, системный alert и т.п.) тоже обязан отпускать стик.
+            this.container.addEventListener('touchcancel', onTouchEnd, {passive: false});
+        }
+
+        onResize() {
+            this.containerRadius = this.container.offsetWidth / 2;
+            this.joystickRadius = this.joystick.offsetWidth / 2;
+            this.maxDist = this.containerRadius - this.joystickRadius - 4;
+            this.updateUI();
+        }
+    }
+
+    // Левый стик: обе оси с пружиной — газ (Y) больше не держит положение при отпускании.
+    const leftJoystick = new VelocityJoystick(
+        'container-left',
+        'joystick-left',
+        'z-val',
+        'yaw-val',
+        { springX: true, springY: true }
+    );
+
+    // Правый стик: обе оси с пружиной (обычное поведение).
+    const rightJoystick = new VelocityJoystick(
+        'container-right',
+        'joystick-right',
+        'x-val',
+        'y-val',
+        { springX: true, springY: true }
+    );
+
+    // Ступенчатая система газа временно убрана (была на THROTTLE_STEP/nudgeThrottle) —
+    // вернулись к прямому пропорциональному управлению стиком/клавишами W/S.
+
+    // ===== Арм жестом ОБОИХ стиков (как на аппаратурах с защитой от случайного арма) =====
+    // Арм: газ вниз-вправо (левый стик) И pitch вниз-влево (правый стик), держать ARM_HOLD_MS.
+    // Дизарма из интерфейса больше нет — дрон садится на землю и disarm'ится сам на стороне FCU.
+    // Оба стика должны реально удерживаться пальцами (isActive), иначе "запаркованный"
+    // после жеста газ (он теперь без пружины) мог бы срабатывать сам по себе.
+    // Порог 0.6: джойстик ограничен окружностью, поэтому на диагонали (45°) каждая ось
+    // физически не может превысить ~0.71 (cos45°). Порог 0.9 недостижим на диагонали в принципе.
+    const STICK_ARM_THRESHOLD = 0.55;
+    const ARM_HOLD_MS = 1000;
+    let armGestureStart = null;
+    let armGestureFired = false;
+
+    function checkArmGesture() {
+        const lx = leftJoystick.normX, ly = leftJoystick.normY;   // левый: X = yaw, Y = газ
+        const rx = rightJoystick.normX, ry = rightJoystick.normY; // правый: X = roll, Y = pitch
+
+        const leftDownRight = ly <= -STICK_ARM_THRESHOLD && lx >= STICK_ARM_THRESHOLD;
+        const rightDownLeft = ry <= -STICK_ARM_THRESHOLD && rx <= -STICK_ARM_THRESHOLD;
+
+        let gesture = false;
+        if (!isArmed && leftJoystick.isActive && rightJoystick.isActive) {
+            gesture = leftDownRight && rightDownLeft;
+        }
+
+        if (!gesture) {
+            armGestureStart = null; armGestureFired = false;
+            return;
+        }
+        if (armGestureStart === null) armGestureStart = Date.now();
+        if (armGestureFired) return;
+
+        const held = Date.now() - armGestureStart;
+        const remain = Math.max(0, (ARM_HOLD_MS - held) / 1000);
+        cmdStatus.textContent = 'Арм: удержите ещё ' + remain.toFixed(1) + ' с';
+        if (held >= ARM_HOLD_MS) {
+            armGestureFired = true;
+            armAndTakeoff();
+        }
+    }
+
+    setInterval(() => {
+        if (controlsLocked) return; // на автовзлёте джойстики и так недоступны (pointer-events:none)
+        checkArmGesture();
+
+        // Пока дрон реально не заармлен (по факту телеметрии, см. updateArmIndicator) —
+        // не шлём НИ ОДНОЙ команды set_velocity. checkArmGesture() выше по-прежнему должен
+        // отрабатывать до арма — это то, что и запускает armAndTakeoff().
+        if (!isArmed) return;
+
+        const yaw = -shapeAxis(leftJoystick.normX) * MAX_YAW;
+        const vz = shapeAxis(leftJoystick.normY) * MAX_Z;
+        const vx = shapeAxis(rightJoystick.normY) * MAX_XY;
+        const vy = -shapeAxis(rightJoystick.normX) * MAX_XY;
+
+        // /navigate — не годится для живого управления ни по одной оси (жёсткая точка +
+        // фиксированные speed/yaw), поэтому пока активна ЛЮБАЯ ось — газ, рысканье или XY —
+        // управление остаётся на set_velocity, как и было. Как только ВСЕ оси одновременно
+        // вернулись в нейтраль, секунду ждём (SETTLING, шлём нулевую скорость — иначе можно
+        // выпасть из OFFBOARD по таймауту PX4, пока ничего не отправляется), и только потом,
+        // если стик за это время не тронули заново, шлём ОДИН вызов /navigate "останься здесь".
+        const anyAxisActive = vx !== 0 || vy !== 0 || vz !== 0 || yaw !== 0;
+
+        if (anyAxisActive) {
+            if (holdDelayTimer) { clearTimeout(holdDelayTimer); holdDelayTimer = null; }
+            controlMode = 'MANUAL';
+            sendVelocity(vx, vy, vz, yaw);
+        } else {
+            if (controlMode === 'MANUAL') {
+                controlMode = 'SETTLING';
+                holdDelayTimer = setTimeout(() => {
+                    holdDelayTimer = null;
+                    controlMode = 'HOLD';
+                    holdCurrentPosition();
+                }, HOLD_DELAY_MS);
+            }
+            if (controlMode === 'SETTLING') sendVelocity(0, 0, 0, 0);
+            // controlMode === 'HOLD': ничего не шлём — держит /navigate.
+        }
+    }, 25);
+
+    // Клавиатура
+    const keyState = {};
+    function updateSticksFromKeys() {
+        let lx = 0, ly = 0;
+        if (keyState['KeyW']) ly += 1;
+        if (keyState['KeyS']) ly -= 1;
+        if (keyState['KeyA']) lx -= 1;
+        if (keyState['KeyD']) lx += 1;
+        const lmag = Math.sqrt(lx*lx + ly*ly);
+        if (lmag > 1) { lx /= lmag; ly /= lmag; }
+        leftJoystick.setFromKeyboard(lx, ly);
+
+        let rx = 0, ry = 0;
+        if (keyState['ArrowUp']) ry += 1;
+        if (keyState['ArrowDown']) ry -= 1;
+        if (keyState['ArrowLeft']) rx -= 1;
+        if (keyState['ArrowRight']) rx += 1;
+        const rmag = Math.sqrt(rx*rx + ry*ry);
+        if (rmag > 1) { rx /= rmag; ry /= rmag; }
+        rightJoystick.setFromKeyboard(rx, ry);
+    }
+
+    window.addEventListener('keydown', e => {
+        if (controlsLocked) return; // клавиатура полностью заблокирована на автовзлёте/калибровке
+        if (e.repeat) return;
+        if (e.code === 'Space') {
+            // Диагональный жест обоими стиками мышью не сделать — оставляем пробел как запасной способ арма.
+            e.preventDefault();
+            armAndTakeoff();
+            return;
+        }
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)) {
+            e.preventDefault();
+            keyState[e.code] = true;
+            updateSticksFromKeys();
+        }
+    });
+    window.addEventListener('keyup', e => {
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)) {
+            e.preventDefault();
+            keyState[e.code] = false;
+            if (!controlsLocked) updateSticksFromKeys();
+        }
+    });
+    window.addEventListener('blur', () => {
+        for (let k in keyState) keyState[k] = false;
+        updateSticksFromKeys();
+    });
+
+    window.addEventListener('beforeunload', () => {
+        sendVelocity(0, 0, 0, 0);
+    });
+
+    // Инициализация
+    updateTelemetry();
+    setInterval(updateTelemetry, 500);
+</script>
+</body>
+</html>

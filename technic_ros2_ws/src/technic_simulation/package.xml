@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>technic_simulation</name>
+  <version>0.1.0</version>
+  <description>PX4 SITL and Gazebo Harmonic simulation for Technic ROS 2.</description>
+
+  <maintainer email="support@skyris.pro">Skyris</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>technic_aruco</exec_depend>
+  <exec_depend>technic_bringup</exec_depend>
+  <exec_depend>technic_description</exec_depend>
+  <exec_depend>technic_flight</exec_depend>
+  <exec_depend>technic_interfaces</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

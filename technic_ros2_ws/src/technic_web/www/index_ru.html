@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Technic Drone Toolkit</title>
+  <style>
+    :root{
+      --bg:#0c0c0e;
+      --panel:#1b1c1f;
+      --panel-2:#222327;
+      --text:#e7e7ea;
+      --muted:#a8abb3;
+      --accent:#2ea0ff;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+      --radius:18px;
+
+      /* адаптивные размеры */
+      --space: clamp(10px, 2vw, 18px);
+      --tile-h-big: clamp(140px, 18vw, 180px);
+      --tile-h-small: clamp(110px, 14vw, 140px);
+      --icon: clamp(28px, 4vw, 48px);
+      --icon-small: clamp(22px, 3vw, 34px);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      background:#0c0c0e;
+      color:var(--text);
+      font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+      /* важно: разрешаем скролл на меньших дисплеях */
+      overflow:auto;
+      touch-action: manipulation;
+    }
+
+    .wrap{
+      width:min(1100px, 92vw);
+      display:flex;flex-direction:column;align-items:stretch;gap:var(--space);
+      padding: var(--space);
+    }
+
+    /* На десктопе обёртка не влияет на раскладку; стили задаются только в mobile media */
+    .main-panel{ display: contents; }
+
+    .top-btn {
+      position:fixed;
+      top: 16px;
+      right: 16px;
+      background: var(--panel);
+      color: var(--muted);
+      border: 1px solid var(--panel-2);
+      border-radius: 12px;
+      min-width: 44px;
+      height: 40px;
+      padding: 0 14px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      z-index: 10;
+    }
+    .top-btn:hover { background: var(--panel-2); color: var(--text); }
+
+    .down-btn {
+      bottom: 20px;
+    }
+
+    header{
+      display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:4px;width:100%;
+    }
+
+    .btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--ring)}
+
+    .logo{font-weight:800;letter-spacing:.28em;font-size:22px}
+    /* делаем svg-логотип резиновым */
+    .logo img{width: clamp(90px, 14vw, 140px); height:auto; display:block;}
+    h1{margin:0;font-size:clamp(15px,1.8vw,18px);font-weight:500;color:var(--muted)}
+
+    /* Верхняя сетка: 3 колонки на широких, меньше — авто-перенос */
+    .grid{
+      display:grid;
+      gap: var(--space);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      align-items: stretch;
+    }
+
+    /* Плитки — без фиксированной ширины/высоты */
+    .tile{
+      background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);
+      padding: clamp(14px, 2vw, 18px);
+      width:100%; /* ключ к адаптивности */
+      min-height: var(--tile-h-big);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-decoration:none;color:var(--text);
+      transition:transform .15s ease,background .2s ease,box-shadow .15s ease
+    }
+    .tile:hover{transform:translateY(-2px);background:var(--panel-2);box-shadow:0 10px 24px rgba(0,0,0,.45)}
+
+    .tile .icon{margin-bottom:10px; width: var(--icon); height: var(--icon);}
+    .tile .title{font-size:clamp(14px,1.6vw,15px);font-weight:500;text-align:center}
+
+    /* Нижний ряд — переведён на grid с авто-переносом */
+    .small-row{
+      display:grid;
+      gap: var(--space);
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      align-items: stretch;
+    }
+
+    .small-tile{
+      min-height: var(--tile-h-small);
+      padding: clamp(12px, 1.8vw, 16px);
+    }
+    .small-tile .icon{width: var(--icon-small); height: var(--icon-small);}
+
+    .version{margin-top:6px;color:var(--muted);font-size:12px}
+
+    .pill-row{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(180px, 1fr));
+      gap: clamp(24px, 5vw, 64px);
+      margin-top: 16px;
+      width: min(760px, 100%);
+      align-self: center;
+    }
+
+    .pill{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 66px;
+      padding: 0 18px;
+      border-radius: 28px;
+      background: var(--panel-2);
+      color: var(--text);
+      text-decoration: none;
+      font-weight:600;
+      box-shadow: var(--shadow)
+    }
+
+    .pill:hover{
+      transform: translateY(-2px);
+    }
+
+    .pill.gray{ background: #3b3f46;}
+    .pill.green{ background: #1e2c25;}
+    .pill.red {background: #3a2324;}
+
+    @media (max-width: 900px){
+      .pill-row{ grid-template-columns: 1fr;}
+      .pill{ height:60px}
+    }
+
+    .stroke{stroke:#8c8f96;stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .stroke.accent{stroke:var(--accent)}
+
+    /* более точные брейкпоинты для отступов/типографики */
+    @media (max-width: 900px){
+      .wrap{gap: calc(var(--space) * 0.9);}
+    }
+    @media (max-width: 600px){
+      header{gap:4px}
+      .tile{min-height: clamp(120px, 24vw, 160px);}
+      .small-tile{min-height: clamp(100px, 20vw, 130px);}
+    }
+    /* Телефон вертикально: лого сверху, контент по центру */
+    @media (max-width: 768px) and (orientation: portrait){
+      :root{
+        --space: 8px;
+        --tile-h-big: clamp(72px, 14svh, 120px);
+        --tile-h-small: clamp(68px, 13svh, 112px);
+        --icon: clamp(24px, 7vw, 36px);
+        --icon-small: clamp(20px, 6vw, 32px);
+      }
+      body{ height:100dvh; overflow:hidden; }
+      .wrap{
+        width:100%;
+        height:100dvh;
+        overflow:hidden;
+        padding:
+          calc(6px + env(safe-area-inset-top))
+          calc(6px + env(safe-area-inset-right))
+          calc(6px + env(safe-area-inset-bottom))
+          calc(6px + env(safe-area-inset-left));
+        gap:0;
+        display:flex;
+        flex-direction:column;
+      }
+      header{
+        flex:0 0 auto;
+        gap:4px;
+        margin-bottom:0;
+        padding-right:calc(48px + env(safe-area-inset-right));
+      }
+      .main-panel{
+        flex:1 1 auto;
+        min-height:0;
+        width:100%;
+        margin:0 auto;
+        display:grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(4, minmax(0, 1fr)) auto;
+        gap:8px;
+        align-content:stretch;
+        justify-content:center;
+      }
+      .logo img{ width: clamp(64px, 20vw, 92px); }
+      h1{ font-size:12px; }
+      .top-btn{ top:calc(8px + env(safe-area-inset-top)); right:calc(8px + env(safe-area-inset-right)); height:34px; min-width:40px; padding:0 10px; font-size:12px; }
+      .grid, .small-row{ display: contents; }
+      .tile{
+        min-height:0;
+        height:100%;
+        padding:10px 8px;
+        border-radius:14px;
+      }
+      .small-tile{ min-height:0; }
+      .tile .icon{ margin-bottom:6px; }
+      .tile .title{ font-size:12px; line-height:1.15; }
+      .pill-row{ grid-column:1 / -1; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:0; width:100%; }
+      .pill{ height:clamp(40px, 6.5svh, 52px); padding:0 12px; border-radius:20px; font-size:13px; }
+      .version{ display:none; }
+    }
+
+    @media (max-width: 360px){
+      .main-panel{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    /* Телефон горизонтально: лого сверху, контент по центру */
+    @media (max-height: 520px) and (orientation: landscape){
+      body{ height:100dvh; overflow:hidden; }
+      .wrap{
+        width:100%;
+        height:100dvh;
+        overflow:hidden;
+        padding:
+          calc(6px + env(safe-area-inset-top))
+          calc(8px + env(safe-area-inset-right))
+          calc(6px + env(safe-area-inset-bottom))
+          calc(8px + env(safe-area-inset-left));
+        gap:0;
+        display:flex;
+        flex-direction:column;
+      }
+      header{ flex:0 0 auto; gap:2px; margin-bottom:0; padding-right:calc(46px + env(safe-area-inset-right)); }
+      .main-panel{
+        flex:1 1 auto;
+        min-height:0;
+        width:100%;
+        margin:0 auto;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        gap:5px;
+      }
+      .logo img{ width:64px; }
+      h1{ font-size:10px; }
+      .top-btn{ top:calc(6px + env(safe-area-inset-top)); right:calc(8px + env(safe-area-inset-right)); height:30px; min-width:36px; padding:0 10px; font-size:11px; }
+      .grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; flex:1 1 auto; min-height:0; align-content:stretch; }
+      .small-row{ grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px; flex:1 1 auto; min-height:0; align-content:stretch; }
+      .tile{ min-height:0; height:100%; padding:8px; border-radius:12px; }
+      .small-tile{ min-height:0; height:100%; padding:8px; }
+      .tile .icon{ width:22px; height:22px; margin-bottom:4px; }
+      .small-tile .icon{ width:20px; height:20px; }
+      .tile .title{ font-size:10px; line-height:1.1; }
+      .pill-row{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; margin-top:0; width:100%; align-self:stretch; flex:0 0 auto; }
+      .pill{ height:38px; padding:0 12px; font-size:12px; border-radius:18px; }
+      .version{ display:none; }
+    }
+  </style>
+</head>
+<body>
+  <button class="top-btn" onclick="location.href='index.html'">EN</button>
+  <div class="wrap">
+    <header>
+      <div class="logo">
+        <img src="SKYRIS.svg" alt="SKYRIS logo">
+      </div>
+      <h1>Technic Drone Toolkit</h1>
+    </header>
+
+    <div class="main-panel">
+      <!-- Верхние крупные карточки -->
+      <main class="grid">
+        <a class="tile" id="butterfly" href="#">
+          <svg class="icon" width="48" height="48" viewBox="0 0 100 100"><rect x="18" y="22" rx="6" ry="6" width="50" height="60" class="stroke accent"/><rect x="32" y="18" rx="6" ry="6" width="50" height="60" class="stroke accent"/></svg>
+          <div class="title">Открыть веб-терминал</div>
+        </a>
+
+        <a class="tile" id="web_video_server" href="image_topics.html">
+          <svg class="icon" width="48" height="48" viewBox="0 0 100 100"><rect x="16" y="20" width="68" height="60" rx="8" class="stroke"/><circle cx="34" cy="40" r="6" class="stroke"/><polyline points="30,68 52,52 68,64 84,44" class="stroke"/></svg>
+          <div class="title">Визуальные топики</div>
+        </a>
+
+        <a class="tile small-tile" href="../technic_blocks/">
+          <svg class="icon" width="50" height="50" viewBox="0 0 100 100"><rect x="18" y="24" width="42" height="42" rx="6" class="stroke"/><rect x="56" y="38" width="42" height="42" rx="6" class="stroke"/><rect x="36" y="54" width="42" height="42" rx="6" class="stroke"/></svg>
+          <div class="title">Блочное программирование</div>
+        </a>
+
+      </main>
+
+      <!-- Нижний ряд компактных карточек -->
+      <div class="small-row">
+        <a class="tile small-tile" href="teleop.html">
+          <svg class="icon" width="34" height="34" viewBox="0 0 100 100"><circle cx="50" cy="50" r="16" class="stroke"/><path d="M50 20 L50 30 M50 80 L50 70 M20 50 L30 50 M80 50 L70 50" class="stroke"/></svg>
+          <div class="title">Ручное управление</div>
+        </a>
+
+        <a class="tile small-tile" href="console.html">
+          <svg class="icon" width="34" height="34" viewBox="0 0 100 100"><circle cx="28" cy="62" r="6" class="stroke"/><path d="M28 62 L44 46" class="stroke"/><rect x="54" y="56" width="22" height="12" rx="4" class="stroke"/></svg>
+          <div class="title">Техник Консоль</div>
+        </a>
+
+        <a class="tile" href="topics.html">
+          <svg class="icon" width="48" height="48" viewBox="0 0 100 100"><circle cx="24" cy="64" r="10" class="stroke"/><circle cx="76" cy="28" r="10" class="stroke"/><circle cx="76" cy="72" r="10" class="stroke"/><line x1="32" y1="58" x2="66" y2="34" class="stroke"/><line x1="32" y1="68" x2="66" y2="66" class="stroke"/></svg>
+          <div class="title">Просмотр топиков</div>
+        </a>
+
+        <a class="tile small-tile" href="genmap.html">
+          <svg class="icon" width="34" height="34" viewBox="0 0 100 100"><rect x="22" y="22" width="56" height="56" rx="6" class="stroke"/><rect x="34" y="34" width="32" height="32" class="stroke"/><circle cx="50" cy="50" r="4" class="stroke"/></svg>
+          <div class="title">Генерация Аруко маркеров</div>
+        </a>
+
+        <a class="tile small-tile" href="docs/ru/">
+          <svg class="icon" width="34" height="34" viewBox="0 0 100 100"><rect x="16" y="22" width="68" height="48" rx="8" class="stroke"/><path d="M26 44 L40 56 M40 44 L26 56" class="stroke"/><line x1="46" y1="58" x2="70" y2="58" class="stroke"/></svg>
+          <div class="title">Просмотр документации</div>
+        </a>
+
+      </div>
+
+    </div>
+
+    <div class="version"></div>
+  </div>
+
+  <script>
+    // На мобильных браузерах дополнительно блокируем pinch/double-tap zoom.
+    document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (event) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    (function(){
+      const host = location.protocol + '//' + location.hostname;
+      const pageQs = new URLSearchParams(location.search);
+      const type = pageQs.get('wvs_type') || 'h264';
+      const isVideoCodec = ['h264', 'vp8', 'vp9'].includes(type);
+      // ROS 2: отдельных топиков image_web нет — все типы потока берутся из image_raw
+      // (ros_compressed — из его транспорта image_raw/compressed)
+      const topic = pageQs.get('wvs_topic') || '/main_camera/image_raw';
+      const width = pageQs.get('wvs_w') || '320';
+      const height = pageQs.get('wvs_h') || '240';
+      const wvsQs = new URLSearchParams({ topic: topic, type: type, width: width, height: height });
+      if (isVideoCodec) {
+        wvsQs.set('bitrate', pageQs.get('wvs_bitrate') || '300000');
+      } else if (pageQs.get('wvs_quality')) {
+        wvsQs.set('quality', pageQs.get('wvs_quality'));
+      }
+      // web_video_server не раскодирует %2F в имени топика, поэтому слэши оставляем как есть
+      const wvsQuery = wvsQs.toString().replace(/%2F/gi, '/');
+      const wvs = document.getElementById('web_video_server');
+      if (wvs) wvs.href = host + ':8080/stream_viewer?' + wvsQuery;
+      const wvsIdx = document.getElementById('wvs_full_index');
+      if (wvsIdx) wvsIdx.href = host + ':8080/';
+      const butterfly = document.getElementById('butterfly');
+      if (butterfly) butterfly.href = host + ':' + (pageQs.get('butterfly_port') || '57575') + '/';
+
+      butterfly?.addEventListener('click', function(e){
+        const local = ['localhost','127.0.0.1','::1'].includes(location.hostname);
+        if(local && !confirm('Похоже, вы на локальной машине. Рекомендуется использовать обычный терминал.\nНажмите OK, чтобы всё равно открыть Butterfly.')) e.preventDefault();
+      });
+
+      fetch('technic_version').then(r=>r.status===200?r.text():null).then(t=>{if(t)document.querySelector('.version').textContent='Version: '+t;});
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+uint8 DISCONNECTED=0
+uint8 DISARMED=1
+uint8 ARMING=2
+uint8 ARMED=3
+uint8 TAKING_OFF=4
+uint8 HOVERING=5
+uint8 NAVIGATING=6
+uint8 LANDING=7
+uint8 FAILSAFE=8
+uint8 ERROR=9
+
+std_msgs/Header header
+uint8 state
+string state_label
+bool connected
+bool armed
+bool offboard
+bool local_position_valid
+bool failsafe
+string autopilot_mode
+string active_command
+string status_message

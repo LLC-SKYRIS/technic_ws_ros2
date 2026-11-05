@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>vl53l1x</name>
+  <version>2.0.0</version>
+  <description>VL53L1X ToF rangefinder driver (ROS 2 port of vl53l1x_ros used in ROS 1 technic)</description>
+
+  <maintainer email="support@skyris.pro">Skyris</maintainer>
+  <license>BSD-3-Clause</license>
+  <url type="repository">https://github.com/okalachev/vl53l1x_ros</url>
+  <author email="okalachev@gmail.com">Oleg Kalachev</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

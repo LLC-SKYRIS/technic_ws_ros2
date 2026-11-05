@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<title>Управление — Technic</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+	<script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+	<style>
+		:root{
+			--bg:#0c0c0e;
+			--panel:#1b1c1f;
+			--panel-2:#222327;
+			--text:#e7e7ea;
+			--muted:#a8abb3;
+			--accent:#2ea0ff;
+			--shadow:0 6px 18px rgba(0,0,0,.35);
+			--radius:18px;
+			--space: clamp(10px, 2vw, 18px);
+		}
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		html, body { height: 100%; overflow: hidden; }
+		body {
+			background: var(--bg);
+			color: var(--text);
+			font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			height: 100dvh;
+			touch-action: none;
+		}
+		.wrap {
+			width: min(1100px, 100vw);
+			height: 100dvh;
+			display: flex;
+			flex-direction: column;
+			gap: var(--space);
+			padding: var(--space);
+			min-height: 0;
+		}
+		header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			width: 100%;
+			flex: 0 0 auto;
+		}
+		h1 { margin: 0; font-size: clamp(16px, 2vw, 22px); font-weight: 500; color: var(--muted); }
+		.header-link {
+			color: var(--accent);
+			text-decoration: none;
+			font-weight: 500;
+		}
+		.header-link:hover { text-decoration: underline; }
+		.header-right {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+		.telemetry-panel {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-end;
+			gap: 2px;
+			color: var(--muted);
+			font-size: clamp(11px, 1.3vw, 13px);
+			line-height: 1.2;
+			white-space: nowrap;
+		}
+		
+		.main-content {
+			display: flex;
+			gap: var(--space);
+			justify-content: center;
+			align-items: flex-start; /* Прижимаем карточки к верху */
+			flex: 0 1 auto; /* Не растягиваем контейнер на всё свободное место внизу */
+			min-height: 0;
+		}
+
+		.card {
+			background: var(--panel);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			padding: clamp(16px, 2vw, 24px); /* Вернул нормальный внутренний отступ */
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 12px;
+			flex: 0 1 450px; /* Карточки больше не пытаются занять всю высоту */
+			min-width: 0;
+			min-height: 0;
+			overflow: hidden;
+		}
+
+		.title { font-weight: 600; font-size: clamp(13px, 1.6vw, 16px); text-align: center; flex: 0 0 auto; }
+		.muted { color: var(--muted); font-size: clamp(11px, 1.3vw, 13px); text-align: center; line-height: 1.35; flex: 0 0 auto; }
+
+		/* D-PAD STYLES */
+		.dpad {
+			--btn: clamp(40px, min(14vw, 12vh), 86px);
+			display: grid;
+			grid-template-columns: repeat(3, var(--btn));
+			grid-template-rows: repeat(3, var(--btn));
+			gap: clamp(6px, 1.4vw, 12px);
+			margin: 0 auto;
+			flex: 0 0 auto;
+		}
+
+		.btn {
+			border: none;
+			border-radius: 14px;
+			background: var(--panel-2);
+			color: var(--text);
+			cursor: pointer;
+			font-size: clamp(18px, 4.5vw, 26px);
+			font-weight: bold;
+			line-height: 1;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 4px;
+			transition: transform .1s, background .15s;
+			box-shadow: 0 4px 10px rgba(0,0,0,.3);
+			user-select: none;
+			-webkit-user-select: none;
+			touch-action: manipulation;
+		}
+		.btn:hover { background: #3b3f46; }
+		.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+		.btn:active, .btn.active { transform: scale(0.92); background: var(--accent); color: #fff; }
+		.btn-symbol { display: block; }
+		.btn-label {
+			display: block;
+			font-size: clamp(8px, 1.5vw, 11px);
+			font-weight: 600;
+			line-height: 1;
+			color: var(--muted);
+		}
+		.btn:active .btn-label,
+		.btn.active .btn-label { color: #fff; }
+
+		/* Positioning in 3x3 grid */
+		.up    { grid-column: 2; grid-row: 1; }
+		.down  { grid-column: 2; grid-row: 3; }
+		.left  { grid-column: 1; grid-row: 2; }
+		.right { grid-column: 3; grid-row: 2; }
+		.center-btn { grid-column: 2; grid-row: 2; font-size: 14px; border-radius: 50%; opacity: 0.5; cursor: default; }
+		.center-btn:hover, .center-btn:active { background: var(--panel-2); transform: none; color: var(--text); }
+
+		/* Range inputs */
+		.sliders {
+			width: 100%;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			flex: 0 0 auto;
+		}
+		.slider-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 8px;
+			font-size: clamp(11px, 1.3vw, 13px);
+			color: var(--muted);
+		}
+		input[type="range"] {
+			width: 140px;
+			accent-color: var(--accent);
+		}
+
+		.quick-actions {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: var(--space);
+			flex: 0 0 auto;
+		}
+		.action-btn {
+			min-height: 48px;
+			height: auto;
+			width: 100%;
+			padding: 0 16px;
+			font-size: clamp(14px, 2vw, 16px);
+			border-radius: 18px;
+		}
+		.action-btn.takeoff { background: var(--accent); color: #fff; }
+		.action-btn.land { background: #3a2324; color: #ff6b6b; }
+
+		.status-bar {
+			width: 100%;
+			text-align: center;
+			color: var(--muted);
+			font-size: clamp(11px, 1.3vw, 13px);
+			flex: 0 0 auto;
+		}
+		@media (max-width: 768px) {
+			:root { --space: 8px; }
+			.wrap {
+				width: 100%;
+				height: 100dvh;
+				overflow: hidden;
+				padding:
+					calc(8px + env(safe-area-inset-top))
+					calc(8px + env(safe-area-inset-right))
+					calc(8px + env(safe-area-inset-bottom))
+					calc(8px + env(safe-area-inset-left));
+				gap: 8px;
+			}
+			header { gap: 8px; }
+			.header-right { gap: 8px; }
+			.telemetry-panel { font-size: 11px; }
+			.main-content {
+				flex: 1 1 auto;
+				justify-content: flex-start;
+				min-height: 0;
+				overflow: hidden;
+			}
+			.card {
+				padding: 10px;
+				gap: 6px;
+			}
+			.title { font-size: 12px; }
+			.muted { display: none; }
+			#ros-status { display: block; }
+			.slider-row {
+				gap: 6px;
+				font-size: 11px;
+			}
+			input[type="range"] {
+				width: min(120px, 42vw);
+			}
+			.status-bar {
+				margin-top: 0;
+				line-height: 1.2;
+			}
+			.action-btn {
+				min-height: 40px;
+				font-size: 12px;
+			}
+		}
+
+		/* Телефон вертикально: две компактные карточки одна под другой */
+		@media (max-width: 768px) and (orientation: portrait) {
+			.main-content {
+				flex-direction: column;
+				align-items: stretch;
+				gap: 8px;
+			}
+			.card {
+				flex: 1 1 0;
+				min-height: 0;
+				justify-content: space-evenly;
+			}
+			.dpad {
+				--btn: clamp(26px, min(11vw, 6.5vh), 44px);
+			}
+			.sliders {
+				gap: 5px;
+			}
+			.quick-actions {
+				gap: 8px;
+			}
+			.action-btn {
+				min-height: 38px;
+			}
+		}
+
+		/* Телефон горизонтально: две карточки рядом, без обрезания и наложений */
+		@media (max-height: 520px) and (orientation: landscape) {
+			.wrap {
+				gap: 6px;
+				padding:
+					calc(6px + env(safe-area-inset-top))
+					calc(8px + env(safe-area-inset-right))
+					calc(6px + env(safe-area-inset-bottom))
+					calc(8px + env(safe-area-inset-left));
+			}
+			h1 { font-size: 14px; }
+			.header-link, #ros-status, .telemetry-panel { font-size: 11px; }
+			.main-content {
+				flex-direction: row;
+				align-items: flex-start;
+				gap: 8px;
+				flex: 1 1 auto;
+				min-height: 0;
+				overflow: hidden;
+			}
+			.card {
+				flex: 1 1 0;
+				padding: 8px;
+				gap: 5px;
+				min-height: 0;
+			}
+			.dpad {
+				--btn: clamp(28px, min(8vw, 13vh), 54px);
+				gap: 5px;
+			}
+			.sliders {
+				gap: 4px;
+			}
+			.slider-row {
+				font-size: 10px;
+				gap: 5px;
+			}
+			.btn { gap: 2px; }
+			.btn-label { font-size: 8px; }
+			input[type="range"] {
+				width: min(100px, 18vw);
+			}
+			.action-btn {
+				min-height: 32px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<header>
+			<div>
+				<h1>Управление дроном</h1>
+				<div class="muted" id="ros-status" style="margin-bottom: 0; margin-top: 4px; text-align: left;">ROS: подключение...</div>
+			</div>
+			<div class="header-right">
+				<div class="telemetry-panel" aria-label="Телеметрия">
+					<div id="altitude-status">Высота: -- м</div>
+					<div id="battery-status">Батарея: -- В</div>
+				</div>
+				<a href="teleop.html" class="header-link">← Вернуться</a>
+			</div>
+		</header>
+
+		<div class="main-content">
+			<!-- Левый пульт: Вверх, вниз, поворот -->
+			<div class="card">				
+				<div class="dpad">
+					<button class="btn up" id="btn-up"><span class="btn-symbol">↑</span><span class="btn-label">Вверх</span></button>
+					<button class="btn left" id="btn-yawl"><span class="btn-symbol">↶</span><span class="btn-label">Yaw</span></button>
+					<button class="btn center-btn">Z/⟳</button>
+					<button class="btn right" id="btn-yawr"><span class="btn-symbol">↷</span><span class="btn-label">Yaw</span></button>
+					<button class="btn down" id="btn-down"><span class="btn-symbol">↓</span><span class="btn-label">Вниз</span></button>
+				</div>
+
+				<div class="sliders">
+					<div class="slider-row">
+						<span>Шаг Z (м): <span id="val-step-z">0.3</span></span>
+						<input type="range" id="step-z" min="0.1" max="1.0" step="0.1" value="0.2">
+					</div>
+					<div class="slider-row">
+						<span>Шаг Yaw : <span id="val-step-yaw">15</span></span>
+						<input type="range" id="step-yaw" min="5" max="90" step="5" value="15">
+					</div>
+				</div>
+			</div>
+
+			<!-- Правый пульт: Вперед, назад, влево, вправо -->
+			<div class="card">				
+				<div class="dpad">
+					<button class="btn up" id="btn-fw"><span class="btn-symbol">↑</span><span class="btn-label">Вперёд</span></button>
+					<button class="btn left" id="btn-left"><span class="btn-symbol">←</span><span class="btn-label">Влево</span></button>
+					<button class="btn center-btn">XY</button>
+					<button class="btn right" id="btn-right"><span class="btn-symbol">→</span><span class="btn-label">Вправо</span></button>
+					<button class="btn down" id="btn-bw"><span class="btn-symbol">↓</span><span class="btn-label">Назад</span></button>
+				</div>
+
+				<div class="sliders">
+					<div class="slider-row">
+						<span>Шаг XY (м): <span id="val-step-xy">0.3</span></span>
+						<input type="range" id="step-xy" min="0.1" max="2.0" step="0.1" value="0.3">
+					</div>
+					<div class="slider-row">
+						<span>Скорость (м/с): <span id="val-speed">0.5</span></span>
+						<input type="range" id="speed" min="0.1" max="3.0" step="0.1" value="0.5">
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="quick-actions" aria-label="Взлёт и посадка">
+			<button class="btn action-btn takeoff" id="btn-takeoff">Взлёт 1 м</button>
+			<button class="btn action-btn land" id="btn-land">Посадка</button>
+		</div>
+
+		<div class="status-bar" id="cmd-status">Ожидание команд...</div>
+	</div>
+
+	<script>
+		// На мобильных браузерах дополнительно блокируем pinch/double-tap zoom.
+		document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+		document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+		let lastTouchEnd = 0;
+		document.addEventListener('touchend', (event) => {
+			const now = Date.now();
+			if (now - lastTouchEnd <= 300) {
+				event.preventDefault();
+			}
+			lastTouchEnd = now;
+		}, { passive: false });
+
+		// ROS Setup
+		const rosUrl = 'ws://' + location.hostname + ':9090';
+		const ros = new ROSLIB.Ros({ url: rosUrl });
+		const rosStatus = document.getElementById('ros-status');
+		const cmdStatus = document.getElementById('cmd-status');
+		const altitudeStatus = document.getElementById('altitude-status');
+		const batteryStatus = document.getElementById('battery-status');
+
+		function setRosState(text, className) {
+			rosStatus.textContent = text;
+			if (className === 'connected') rosStatus.style.color = '#4ade80';
+			else if (className === 'closed') rosStatus.style.color = '#f87171';
+			else rosStatus.style.color = '';
+		}
+
+		ros.on('connection', () => setRosState('ROS: connected (' + rosUrl + ')', 'connected'));
+		ros.on('error', (error) => setRosState('ROS error: ' + error, 'closed'));
+		ros.on('close', () => {
+			setRosState('ROS: closed, reconnecting...', 'closed');
+			setTimeout(() => ros.connect(rosUrl), 2000);
+		});
+
+		// Используем сервис /navigate для дискретных шагов (один клик - одно смещение)
+		const navigateSrv = new ROSLIB.Service({ ros, name: '/navigate', serviceType: 'technic_web/srv/Navigate' });
+		const landSrv = new ROSLIB.Service({ ros, name: '/land', serviceType: 'std_srvs/srv/Trigger' });
+		const telemetrySrv = new ROSLIB.Service({ ros, name: '/get_telemetry', serviceType: 'technic_web/srv/GetTelemetry' });
+		// В simple_offboard время полёта = distance / speed → делим speed, чтобы удвоить время
+		const NAV_TIME_FACTOR = 2;
+
+		// Sliders
+		const stepXY = document.getElementById('step-xy');
+		const stepZ  = document.getElementById('step-z');
+		const stepYaw = document.getElementById('step-yaw');
+		const speedInp = document.getElementById('speed');
+		const MIN_ALTITUDE = 0.2;
+		const TAKEOFF_ALTITUDE = 1.0;
+		const TAKEOFF_ALTITUDE_EPS = 0.05;
+		const COMMAND_BUTTON_IDS = [
+			'btn-fw', 'btn-bw', 'btn-left', 'btn-right',
+			'btn-up', 'btn-down', 'btn-yawl', 'btn-yawr',
+			'btn-takeoff', 'btn-land'
+		];
+		let controlsLocked = false;
+		let takeoffEnabledByTelemetry = false;
+		let landingRequestedDuringTakeoff = false;
+		
+		stepXY.addEventListener('input', e => document.getElementById('val-step-xy').textContent = e.target.value);
+		stepZ.addEventListener('input', e => document.getElementById('val-step-z').textContent = e.target.value);
+		stepYaw.addEventListener('input', e => document.getElementById('val-step-yaw').textContent = e.target.value);
+		speedInp.addEventListener('input', e => document.getElementById('val-speed').textContent = e.target.value);
+
+		function getTelemetry(frameId) {
+			return new Promise((resolve, reject) => {
+				telemetrySrv.callService(
+					new ROSLIB.ServiceRequest({ frame_id: frameId }),
+					resolve,
+					(error) => reject(new Error(String(error)))
+				);
+			});
+		}
+
+		function setControlsLocked(locked) {
+			controlsLocked = locked;
+			COMMAND_BUTTON_IDS.forEach((id) => {
+				const button = document.getElementById(id);
+				if (button) button.disabled = (id !== 'btn-land' && locked) || (id === 'btn-takeoff' && !takeoffEnabledByTelemetry);
+			});
+		}
+
+		function setTakeoffEnabled(enabled, reason) {
+			takeoffEnabledByTelemetry = enabled;
+			const button = document.getElementById('btn-takeoff');
+			if (!button) return;
+			button.disabled = controlsLocked || !enabled;
+			button.title = enabled ? 'Взлёт на 1 м' : reason;
+		}
+
+		async function updateTakeoffAvailability() {
+			try {
+				const telemetry = await getTelemetry('');
+				const mode = telemetry.mode || '';
+				const altitudeKnown = Number.isFinite(telemetry.z);
+				const onGround = telemetry.armed === false || (altitudeKnown && telemetry.z <= MIN_ALTITUDE);
+
+				if (mode === 'OFFBOARD') {
+					setTakeoffEnabled(false, 'Takeoff недоступен: дрон уже в OFFBOARD.');
+				} else if (!onGround) {
+					setTakeoffEnabled(false, 'Takeoff доступен только когда дрон стоит на земле.');
+				} else {
+					setTakeoffEnabled(true, '');
+				}
+			} catch (error) {
+				setTakeoffEnabled(false, 'Takeoff недоступен: нет телеметрии.');
+			}
+		}
+
+		function formatNumber(value, digits) {
+			return Number.isFinite(value) ? value.toFixed(digits) : '--';
+		}
+
+		async function updateTelemetryStatus() {
+			try {
+				const telemetry = await getTelemetry('');
+				altitudeStatus.textContent = 'Высота: ' + formatNumber(telemetry.z, 2) + ' м';
+				const battery = formatNumber(telemetry.voltage, 2);
+				const cell = Number.isFinite(telemetry.cell_voltage)
+					? ' (' + telemetry.cell_voltage.toFixed(2) + ' В/яч)'
+					: '';
+				batteryStatus.textContent = 'Батарея: ' + battery + ' В' + cell;
+			} catch (error) {
+				altitudeStatus.textContent = 'Высота: -- м';
+				batteryStatus.textContent = 'Батарея: -- В';
+			}
+		}
+
+		function callNavigate(req) {
+			return new Promise((resolve, reject) => {
+				navigateSrv.callService(
+					new ROSLIB.ServiceRequest(req),
+					(res) => {
+						const ok = res && (res.success === true || res.success === 1);
+						if (ok) resolve(res);
+						else reject(new Error(res && res.message ? res.message : 'service returned false'));
+					},
+					(error) => reject(new Error(String(error)))
+				);
+			});
+		}
+
+		function sleep(ms) {
+			return new Promise((resolve) => setTimeout(resolve, ms));
+		}
+
+		async function waitForTakeoffAltitude() {
+			const deadline = Date.now() + 20000;
+			while (Date.now() < deadline) {
+				if (landingRequestedDuringTakeoff) {
+					throw new Error('ожидание взлёта прервано командой посадки');
+				}
+				const telemetry = await getTelemetry('');
+				if (Number.isFinite(telemetry.z) && telemetry.z >= TAKEOFF_ALTITUDE - TAKEOFF_ALTITUDE_EPS) {
+					return telemetry.z;
+				}
+				await sleep(500);
+			}
+			throw new Error('дрон не достиг высоты 1 м за 20 секунд');
+		}
+
+		async function doStep(dx, dy, dz, dyaw) {
+			if (controlsLocked) return false;
+
+			let sXY = parseFloat(stepXY.value);
+			let sZ  = parseFloat(stepZ.value);
+			let sYaw = parseFloat(stepYaw.value) * Math.PI / 180.0;
+			let spd = parseFloat(speedInp.value);
+			let z = dz * sZ;
+
+			if (dz < 0) {
+				try {
+					const telemetry = await getTelemetry('');
+					if (!Number.isFinite(telemetry.z)) {
+						cmdStatus.textContent = 'Снижение заблокировано: не удалось получить текущую высоту.';
+						cmdStatus.style.color = '#fbbf24';
+						return false;
+					}
+					if (telemetry.z <= MIN_ALTITUDE || telemetry.z - sZ < MIN_ALTITUDE) {
+						cmdStatus.textContent = 'Снижение заблокировано: нельзя опускаться ниже 0.2 м.';
+						cmdStatus.style.color = '#fbbf24';
+						return false;
+					}
+				} catch (error) {
+					cmdStatus.textContent = 'Снижение заблокировано: ошибка получения высоты: ' + error.message;
+					cmdStatus.style.color = '#fbbf24';
+					return false;
+				}
+			}
+
+			if (dz === 0) {
+				try {
+					const targetTelemetry = await getTelemetry('navigate_target');
+					if (Number.isFinite(targetTelemetry.z)) {
+						// Keep the previous navigation target altitude instead of reusing the slightly sagged current altitude.
+						z = -targetTelemetry.z;
+					}
+				} catch (error) {
+					cmdStatus.textContent = 'Не удалось получить высоту target, отправляю шаг без компенсации: ' + error.message;
+					cmdStatus.style.color = '#fbbf24';
+				}
+			}
+
+			let req = new ROSLIB.ServiceRequest({
+				x: dx * sXY,
+				y: dy * sXY,
+				z: z,
+				yaw: dyaw * sYaw,
+				speed: spd / NAV_TIME_FACTOR,
+				frame_id: 'body',
+				auto_arm: false
+			});
+
+			let msg = `Отправка шага: x=${req.x.toFixed(2)}, y=${req.y.toFixed(2)}, z=${req.z.toFixed(2)}`;
+			if (dyaw !== 0) msg += `, yaw=${(dyaw * parseFloat(stepYaw.value)).toFixed(0)}°`;
+			
+			cmdStatus.textContent = msg;
+			cmdStatus.style.color = '#2ea0ff';
+
+			navigateSrv.callService(req, (res) => {
+				if (res && res.success) {
+					cmdStatus.textContent = msg + ' (Успешно)';
+					cmdStatus.style.color = '#4ade80';
+				} else {
+					cmdStatus.textContent = 'Ошибка выполнения: ' + (res ? res.message : '');
+					cmdStatus.style.color = '#f87171';
+				}
+			}, (err) => {
+				cmdStatus.textContent = 'Ошибка сервиса /navigate: ' + err;
+				cmdStatus.style.color = '#f87171';
+			});
+			return true;
+		}
+
+		async function takeoffOneMeter() {
+			if (controlsLocked || !takeoffEnabledByTelemetry) return;
+
+			const req = {
+				x: 0.0,
+				y: 0.0,
+				z: TAKEOFF_ALTITUDE,
+				yaw: 0.0,
+				speed: 0.5,
+				frame_id: 'body',
+				auto_arm: true
+			};
+
+			landingRequestedDuringTakeoff = false;
+			setControlsLocked(true);
+			cmdStatus.textContent = 'Взлёт на 1 м: команды заблокированы до набора высоты...';
+			cmdStatus.style.color = '#2ea0ff';
+
+			try {
+				await callNavigate(req);
+				const altitude = await waitForTakeoffAltitude();
+				cmdStatus.textContent = 'Взлёт: OK, высота ' + altitude.toFixed(2) + ' м.';
+				cmdStatus.style.color = '#4ade80';
+			} catch (error) {
+				cmdStatus.textContent = 'Ошибка взлёта: ' + error.message;
+				cmdStatus.style.color = '#f87171';
+			} finally {
+				setTakeoffEnabled(false, 'Takeoff недоступен: обновляю телеметрию.');
+				setControlsLocked(false);
+				updateTakeoffAvailability();
+			}
+		}
+
+		function landDrone() {
+			landingRequestedDuringTakeoff = true;
+
+			cmdStatus.textContent = 'Отправка команды посадки...';
+			cmdStatus.style.color = '#2ea0ff';
+
+			landSrv.callService(new ROSLIB.ServiceRequest({}), (res) => {
+				const ok = res && (res.success === true || res.success === 1);
+				cmdStatus.textContent = (ok ? 'Посадка: OK' : 'Ошибка посадки') + (res && res.message ? ': ' + res.message : '');
+				cmdStatus.style.color = ok ? '#4ade80' : '#f87171';
+			}, (err) => {
+				cmdStatus.textContent = 'Ошибка сервиса /land: ' + err;
+				cmdStatus.style.color = '#f87171';
+			});
+		}
+
+		setTakeoffEnabled(false, 'Takeoff недоступен: ожидаю телеметрию.');
+		updateTakeoffAvailability();
+		updateTelemetryStatus();
+		setInterval(updateTakeoffAvailability, 1000);
+		setInterval(updateTelemetryStatus, 1000);
+
+		// Button mappings
+		const btnMap = {
+			'btn-fw':   { fn: () => doStep(1, 0, 0, 0) },
+			'btn-bw':   { fn: () => doStep(-1, 0, 0, 0) },
+			'btn-left': { fn: () => doStep(0, 1, 0, 0) },
+			'btn-right':{ fn: () => doStep(0, -1, 0, 0) },
+			'btn-up':   { fn: () => doStep(0, 0, 1, 0) },
+			'btn-down': { fn: () => doStep(0, 0, -1, 0) },
+			'btn-yawl': { fn: () => doStep(0, 0, 0, 1) },
+			'btn-yawr': { fn: () => doStep(0, 0, 0, -1) }
+		};
+
+		const keysMap = {
+			'ArrowUp': 'btn-fw',
+			'ArrowDown': 'btn-bw',
+			'ArrowLeft': 'btn-left',
+			'ArrowRight': 'btn-right',
+			'KeyW': 'btn-up',
+			'KeyS': 'btn-down',
+			'KeyA': 'btn-yawl',
+			'KeyD': 'btn-yawr'
+		};
+
+		// Mouse & Touch bindings
+		for (let id in btnMap) {
+			const el = document.getElementById(id);
+			if (!el) continue;
+			
+			const fire = async (e) => {
+				e.preventDefault();
+				if (controlsLocked || el.disabled) return;
+				const fired = await btnMap[id].fn();
+				if (fired === false) return;
+				el.classList.add('active');
+				setTimeout(() => el.classList.remove('active'), 150);
+			};
+			
+			el.addEventListener('mousedown', fire);
+			el.addEventListener('touchstart', fire, {passive: false});
+		}
+
+		document.getElementById('btn-takeoff').addEventListener('click', takeoffOneMeter);
+		document.getElementById('btn-land').addEventListener('click', landDrone);
+
+		// Keyboard bindings
+		window.addEventListener('keydown', async (e) => {
+			if (e.repeat) return; // Игнорируем долгое зажатие - реагируем только 1 раз!
+			if (e.code === 'Space') {
+				e.preventDefault();
+				const el = document.getElementById('btn-takeoff');
+				if (!controlsLocked && !el.disabled) {
+					takeoffOneMeter();
+					el.classList.add('active');
+					setTimeout(() => el.classList.remove('active'), 150);
+				}
+				return;
+			}
+			if (e.code === 'Escape') {
+				e.preventDefault();
+				const el = document.getElementById('btn-land');
+				if (!el.disabled) {
+					landDrone();
+					el.classList.add('active');
+					setTimeout(() => el.classList.remove('active'), 150);
+				}
+				return;
+			}
+			const id = keysMap[e.code];
+			if (id) {
+				e.preventDefault();
+				const el = document.getElementById(id);
+				if (!controlsLocked && el && !el.disabled) {
+					const fired = await btnMap[id].fn();
+					if (fired === false) return;
+					el.classList.add('active');
+					setTimeout(() => el.classList.remove('active'), 150);
+				}
+			}
+		});
+
+		window.addEventListener('keyup', (e) => {
+			const id = keysMap[e.code];
+			if (id) {
+				e.preventDefault();
+				const el = document.getElementById(id);
+				if (el) el.classList.remove('active');
+			}
+		});
+	</script>
+</body>
+</html>

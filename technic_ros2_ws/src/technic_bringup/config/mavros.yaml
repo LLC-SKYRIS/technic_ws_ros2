@@ -1,0 +1,72 @@
+# mavros for PX4 on hardware, as technic/launch/mavros.launch in ROS 1.
+# fcu_url and gcs_url are set by hardware_flight.launch.py.
+/mavros/**:
+  ros__parameters:
+    tgt_system: 1
+    tgt_component: 1
+    fcu_protocol: "v2.0"
+    # Send MAVLink to QGC only after its heartbeat is received.
+    gcs_quiet_mode: true
+    # Plugins used by the flight backend; everything else is disabled.
+    plugin_denylist:
+      - "*"
+    plugin_allowlist:
+      - sys_status
+      - sys_time
+      - command
+      - param
+      - imu
+      - local_position
+      - setpoint_raw
+      - vision_pose
+      - distance_sensor
+      - px4flow
+      - rc_io
+
+/mavros/**/conn:
+  ros__parameters:
+    timeout: 8.0
+    heartbeat_rate: 1.0
+    system_time_rate: 1.0
+    timesync_rate: 0.0
+
+/mavros/**/time:
+  ros__parameters:
+    time_ref_source: "fcu"
+    timesync_mode: MAVLINK
+
+/mavros/**/local_position:
+  ros__parameters:
+    frame_id: "map"
+    # The flight manager publishes map -> base_link itself.
+    tf:
+      send: false
+      frame_id: "map"
+      child_frame_id: "base_link"
+
+/mavros/**/imu:
+  ros__parameters:
+    frame_id: "base_link"
+
+# As distance_sensor in ROS 1 technic mavros_config.yaml: the VL53L1X range
+# (relayed from /rangefinder/range) is sent to PX4 as DISTANCE_SENSOR.
+/mavros/**/distance_sensor:
+  ros__parameters:
+    # rangefinder: the distance PX4 uses (DISTANCE_SENSOR from PX4, id 0),
+    # published to ROS as in ROS 1.
+    config: |
+      rangefinder:
+        id: 0
+        frame_id: "rangefinder"
+        orientation: PITCH_270
+        field_of_view: 0.5
+      rangefinder_sub:
+        subscriber: true
+        id: 1
+        orientation: PITCH_270
+        covariance: 1  # cm
+
+/mavros/**/vision_pose:
+  ros__parameters:
+    tf:
+      listen: false

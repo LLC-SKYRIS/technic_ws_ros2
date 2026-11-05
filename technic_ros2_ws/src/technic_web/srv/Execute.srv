@@ -1,0 +1,8 @@
+# Run a shell command on the drone (ROS 1 technic/Execute, used by console.html).
+int32 CODE_FAIL = -1
+int32 CODE_TIMEOUT = -2
+
+string cmd
+---
+string output
+int32 code

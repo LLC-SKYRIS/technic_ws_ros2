@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>technic_docs</name>
+  <version>0.1.0</version>
+  <description>Technic documentation (GitBook Markdown from technic_ws roswww_static) with an offline in-browser viewer, served by technic_web at /technic/docs/.</description>
+
+  <maintainer email="support@skyris.pro">Skyris</maintainer>
+  <license>CC-BY-NC-SA-4.0</license>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

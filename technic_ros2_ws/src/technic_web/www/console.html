@@ -1,0 +1,1255 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<title>Technic Console</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+	<script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+	<style>
+		:root{
+			--bg:#0c0c0e;
+			--panel:#1b1c1f;
+			--panel-2:#222327;
+			--text:#e7e7ea;
+			--muted:#a8abb3;
+			--accent:#2ea0ff;
+			--shadow:0 6px 18px rgba(0,0,0,.35);
+			--radius:18px;
+			--gap: clamp(10px, 1.2vw, 16px);
+			--btn-h: 40px;
+		}
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			background: var(--bg);
+			color: var(--text);
+			font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+			overflow-x: hidden;
+			overflow-y: auto;
+			touch-action: manipulation;
+		}
+		/* Как на главной: страница идёт сверху вниз и прокручивается, карточки по высоте
+		   содержимого, кнопки взлёта/посадки сразу под ними, а не прижаты к низу экрана. */
+		.wrap {
+			width: min(1600px, 100%);
+			margin: 0 auto;
+			display: flex;
+			flex-direction: column;
+			gap: var(--gap);
+			padding:
+				calc(var(--gap) + env(safe-area-inset-top))
+				calc(clamp(12px, 2vw, 28px) + env(safe-area-inset-right))
+				calc(var(--gap) + env(safe-area-inset-bottom))
+				calc(clamp(12px, 2vw, 28px) + env(safe-area-inset-left));
+		}
+		header {
+			flex: 0 0 auto;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 12px;
+		}
+		h1 { font-size: clamp(18px, 1.6vw, 22px); font-weight: 500; color: var(--muted); }
+		.header-link {
+			color: var(--accent);
+			text-decoration: none;
+			font-weight: 500;
+			white-space: nowrap;
+		}
+		.header-link:hover { text-decoration: underline; }
+
+		/* Ноутбук: Wi-Fi и четыре инструмента в один ряд */
+		.grid {
+			flex: 0 0 auto;
+			display: grid;
+			gap: var(--gap);
+			grid-template-columns: repeat(5, minmax(0, 1fr));
+			grid-template-areas: "wifi rec conv yaw servo";
+			/* все карточки одной высоты — по самой высокой: строки 1fr в сетке без
+			   заданной высоты равны самой высокой строке, карточки растягиваются в ней */
+			grid-auto-rows: 1fr;
+			align-items: stretch;
+		}
+		.wifi-card { grid-area: wifi; }
+		.card-record { grid-area: rec; }
+		.card-convert { grid-area: conv; }
+		.card-yaw { grid-area: yaw; }
+		.card-servo { grid-area: servo; }
+		.card {
+			min-width: 0;
+			background: var(--panel);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			padding: clamp(12px, 1.3vw, 18px);
+			display: flex;
+			flex-direction: column;
+		}
+		.card > * { flex-shrink: 0; }
+		.title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+		.muted { color: var(--muted); font-size: 12.5px; margin-bottom: 8px; line-height: 1.4; }
+		label { display: block; font-size: 12.5px; color: var(--muted); margin: 8px 0 5px; }
+		input[type="number"], input[type="text"], input[type="password"], select {
+			width: 100%;
+			height: var(--btn-h);
+			padding: 0 12px;
+			border: 1px solid var(--panel-2);
+			border-radius: 12px;
+			background: var(--bg);
+			color: var(--text);
+			font: inherit;
+		}
+		input:disabled {
+			opacity: 0.55;
+			cursor: not-allowed;
+		}
+		input:focus, select:focus { outline: none; border-color: var(--accent); }
+		.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+		.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+		.btn {
+			padding: 0 16px;
+			height: var(--btn-h);
+			border: none;
+			border-radius: calc(var(--btn-h) / 2);
+			background: var(--panel-2);
+			color: var(--text);
+			cursor: pointer;
+			font: inherit;
+			font-weight: 600;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			white-space: nowrap;
+			transition: transform .15s ease, background .2s ease;
+			box-shadow: 0 2px 8px rgba(0,0,0,.2);
+		}
+		.btn:hover { transform: translateY(-2px); background: #3b3f46; }
+		.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+		.btn.danger { background: #3a2324; color: #ff6b6b; }
+		.btn.danger:hover { background: #4a2a2b; }
+		.btn.danger.recording { background: #ef4444; color: #fff; }
+		.btn.accent { background: #16324a; color: #9bd3ff; }
+		.btn.accent:hover { background: #1d4060; }
+		.arrow { min-width: 56px; font-size: 22px; font-weight: bold; }
+		code.status {
+			display: block;
+			padding: 8px 12px;
+			background: var(--bg);
+			border-radius: 12px;
+			margin-top: 12px;
+			font-size: 12.5px;
+			white-space: pre-wrap;
+			word-break: break-word;
+			color: var(--muted);
+			min-height: 36px;
+		}
+
+		/* Wi-Fi: в узкой колонке поля друг под другом */
+		.wifi-card .wifi-form {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 0 12px;
+			align-items: end;
+		}
+		.wifi-card .wifi-form .field { min-width: 0; }
+		.wifi-card .wifi-form .btn { margin-top: 12px; justify-self: start; }
+		.wifi-head {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 2px 12px;
+			margin-bottom: 6px;
+		}
+		.wifi-head .title { margin-bottom: 0; }
+		.wifi-mode-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 12.5px;
+			color: var(--muted);
+		}
+		.wifi-mode-pill b { color: var(--text); font-weight: 600; }
+		.wifi-client-switch { margin-top: 12px; }
+
+		.wifi-note { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; line-height: 1.4; }
+
+		.wifi-client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+		.wifi-client-fields .field { min-width: 0; }
+		.wifi-client-fields .field-list { grid-column: 1 / -1; }
+		/* При подключении к другой сети описание точки доступа не нужно — экономим место */
+		.wifi-card:has(#wifi-client-panel:not([hidden])) > .muted { display: none; }
+
+		.pill-row {
+			flex: 0 0 auto;
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: clamp(12px, 3vw, 32px);
+			margin-top: calc(var(--gap) / 2);
+		}
+		.pill {
+			display: flex;
+			min-width: 180px;
+			align-items: center;
+			justify-content: center;
+			height: clamp(44px, 7vh, 60px);
+			padding: 0 18px;
+			border-radius: 28px;
+			background: var(--panel-2);
+			color: var(--text);
+			text-decoration: none;
+			font-weight: 600;
+			box-shadow: var(--shadow);
+			transition: transform .15s ease;
+		}
+		.pill:hover { transform: translateY(-2px); }
+		.pill.gray { background: #3b3f46; }
+		.pill.green { background: #1e2c25; }
+		.pill.red { background: #3a2324; }
+
+		/* Низкий экран ноутбука: компактнее по вертикали */
+		@media (min-width: 769px) and (max-height: 700px) {
+			:root { --btn-h: 36px; }
+			.title { margin-bottom: 4px; }
+			label { margin: 6px 0 4px; }
+			.row, code.status { margin-top: 10px; }
+			.pill { height: 42px; }
+			.wifi-note { display: none; }
+		}
+
+		/* Небольшой ноутбук / планшет: Wi-Fi строкой сверху, инструменты под ним */
+		@media (min-width: 769px) and (max-width: 1199px) {
+			.grid {
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				grid-template-rows: 1fr 1fr;
+				grid-template-areas:
+					"wifi wifi wifi wifi"
+					"rec conv yaw servo";
+			}
+			.wifi-card .wifi-form { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; }
+			.wifi-card .wifi-form .btn { margin-top: 0; min-width: 140px; }
+			.wifi-client-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+			.wifi-client-fields .field-list { grid-column: auto; }
+		}
+		@media (min-width: 769px) and (max-width: 959px) {
+			.grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				grid-template-rows: 1fr 1fr 1fr;
+				grid-template-areas:
+					"wifi wifi"
+					"rec conv"
+					"yaw servo";
+			}
+		}
+
+		/* Телефоны (вертикально и горизонтально): компактная шапка, кнопки записи рядом */
+		@media (max-width: 768px), (max-height: 520px) and (orientation: landscape) {
+			.head-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+			#ros-status { margin-top: 0 !important; }
+			.wifi-head { margin-bottom: 2px; }
+			.card-record .row .btn {
+				flex: 0 1 auto;
+				min-width: 0;
+				white-space: normal;
+				line-height: 1.1;
+				text-align: center;
+				padding: 0 6px;
+			}
+		}
+
+		/* Телефон, вертикально: Wi-Fi сверху, инструменты 2×2, описания скрыты */
+		@media (max-width: 768px) {
+			:root { --gap: 6px; --btn-h: 32px; --radius: 14px; }
+			body { font-size: 13px; }
+			.wrap {
+				padding:
+					calc(6px + env(safe-area-inset-top))
+					calc(6px + env(safe-area-inset-right))
+					calc(6px + env(safe-area-inset-bottom))
+					calc(6px + env(safe-area-inset-left));
+			}
+			h1 { font-size: 15px; }
+			.header-link { font-size: 12px; }
+			#ros-status { font-size: 11px; }
+			.grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				grid-template-rows: auto;
+				grid-template-areas:
+					"wifi wifi"
+					"rec conv"
+					"yaw servo";
+				align-content: start;
+				align-items: stretch;
+			}
+			.grid { grid-template-rows: none; grid-auto-rows: 1fr; }
+			.card { padding: 7px 9px; }
+			.title { font-size: 12.5px; margin-bottom: 3px; line-height: 1.25; }
+			.wifi-note { display: none; }
+			.wifi-client-fields { gap: 0 6px; }
+			.card .muted { display: none; }
+			label { font-size: 11px; margin: 4px 0 3px; }
+			input[type="number"], input[type="text"], input[type="password"], select {
+				padding: 0 8px;
+				border-radius: 10px;
+				font-size: 13px;
+			}
+			.row { margin-top: 6px; gap: 6px; }
+			.grid-2 { gap: 6px; }
+			.btn { padding: 0 10px; font-size: 12.5px; }
+			.arrow { min-width: 0; font-size: 18px; }
+			code.status {
+				margin-top: 6px;
+				padding: 5px 8px;
+				min-height: 0;
+				font-size: 11px;
+				border-radius: 10px;
+			}
+			.wifi-card .wifi-form { grid-template-columns: 1fr 1fr; gap: 0 6px; }
+			.wifi-card .wifi-form .btn { grid-column: 1 / -1; margin-top: 6px; }
+			.pill { min-width: 140px; }
+			.wifi-mode-pill { font-size: 11px; }
+			.wifi-note { font-size: 11px; margin: 4px 0 0; }
+			.wifi-client-switch { margin-top: 6px; }
+			.pill-row { gap: 8px; }
+			.pill { height: 42px; border-radius: 20px; font-size: 14px; }
+		}
+
+		@media (max-width: 768px) and (max-height: 620px) {
+			:root { --gap: 5px; --btn-h: 30px; }
+			.card { padding: 6px 8px; }
+			label { margin: 3px 0 2px; }
+			.row { margin-top: 5px; }
+			code.status { margin-top: 5px; padding: 4px 7px; }
+			.pill { height: 38px; }
+		}
+
+		/* Телефон, горизонтально: Wi-Fi колонкой слева, инструменты 2×2 справа */
+		@media (max-height: 520px) and (orientation: landscape) {
+			:root { --gap: 6px; --btn-h: 28px; --radius: 12px; }
+			body { font-size: 12px; }
+			.wrap {
+				padding:
+					calc(4px + env(safe-area-inset-top))
+					calc(8px + env(safe-area-inset-right))
+					calc(4px + env(safe-area-inset-bottom))
+					calc(8px + env(safe-area-inset-left));
+			}
+			header { flex-direction: row; }
+			h1 { font-size: 13px; }
+			.header-link, #ros-status { font-size: 10.5px; }
+			.grid {
+				grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+				grid-template-rows: 1fr 1fr;
+				grid-template-areas:
+					"wifi rec conv"
+					"wifi yaw servo";
+				align-items: stretch;
+			}
+			.card { padding: 5px 8px; }
+			.title { font-size: 12px; margin-bottom: 2px; }
+			.card .muted { display: none; }
+			label { font-size: 10px; margin: 2px 0 2px; }
+			input[type="number"], input[type="text"], input[type="password"], select {
+				padding: 0 6px;
+				border-radius: 8px;
+				font-size: 12px;
+			}
+			.row { margin-top: 4px; gap: 4px; }
+			.grid-2 { gap: 4px; }
+			.btn { padding: 0 8px; font-size: 11px; }
+			.arrow { min-width: 0; font-size: 15px; }
+			code.status {
+				margin-top: 4px;
+				padding: 3px 6px;
+				min-height: 0;
+				font-size: 10px;
+				border-radius: 8px;
+			}
+			.wifi-card .wifi-form { grid-template-columns: 1fr 1fr; gap: 0 4px; }
+			.wifi-card .wifi-form .btn { grid-column: 1 / -1; margin-top: 4px; }
+			.wifi-mode-pill { font-size: 10px; }
+			.wifi-note { font-size: 10px; margin: 2px 0 0; }
+			.wifi-client-switch { margin-top: 4px; }
+			.wifi-note { display: none; }
+			.wifi-client-fields { gap: 0 4px; }
+			.pill-row { gap: 12px; }
+			.pill { height: 30px; min-width: 120px; border-radius: 15px; font-size: 12px; }
+		}
+		@media (max-height: 340px) and (orientation: landscape) {
+			:root { --btn-h: 26px; --gap: 5px; }
+			label { margin: 1px 0 1px; }
+			.row, code.status { margin-top: 3px; }
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<header>
+			<div class="head-title">
+				<h1>Technic Console</h1>
+				<div class="muted" id="ros-status" style="margin-bottom: 0; margin-top: 4px;">ROS: подключение...</div>
+			</div>
+			<a href="index.html" class="header-link">← На главную</a>
+		</header>
+
+		<div class="grid">
+			<div class="card wifi-card">
+				<div class="wifi-head">
+					<div class="title" id="wifi-title">Wi-Fi точка доступа</div>
+					<div class="wifi-mode-pill">Режим: <b id="wifi-mode-label">чтение...</b></div>
+				</div>
+				<div class="muted">
+					Переключатель AP держит заводское имя. Auto позволяет задать своё имя и пароль или подключиться к другой сети Wi-Fi. После сохранения своя точка доступа перезапустится на 5–10 секунд.
+				</div>
+				<div id="wifi-ap-block">
+					<div class="wifi-form">
+						<div class="field">
+							<label for="wifi-ssid">Имя сети (SSID)</label>
+							<input id="wifi-ssid" type="text" maxlength="32" autocomplete="off" spellcheck="false">
+						</div>
+						<div class="field">
+							<label for="wifi-password">Пароль</label>
+							<input id="wifi-password" type="password" minlength="8" maxlength="63" autocomplete="new-password">
+						</div>
+						<button id="wifi-save" class="btn" type="button">Сохранить</button>
+					</div>
+				</div>
+				<div id="wifi-client-switch" class="wifi-client-switch" hidden>
+					<button id="wifi-to-client" class="btn accent" type="button">Подключиться к сети Wi-Fi</button>
+				</div>
+				<div id="wifi-client-panel" class="wifi-client-panel" hidden>
+					<div class="wifi-note">Своя точка доступа останется включённой. Дрон дополнительно подключится к выбранной сети через отдельный интерфейс.</div>
+					<div class="wifi-client-fields">
+						<div class="field field-list">
+							<label for="wifi-client-list">Доступные сети</label>
+							<select id="wifi-client-list"></select>
+						</div>
+						<div class="field">
+							<label for="wifi-client-ssid">Имя сети</label>
+							<input id="wifi-client-ssid" type="text" maxlength="32" autocomplete="off" spellcheck="false">
+						</div>
+						<div class="field">
+							<label for="wifi-client-password">Пароль сети</label>
+							<input id="wifi-client-password" type="password" maxlength="63" autocomplete="new-password" placeholder="Открытая сеть — пусто">
+						</div>
+					</div>
+					<div class="row">
+						<button id="wifi-scan" class="btn" type="button">Обновить список</button>
+						<button id="wifi-client-connect" class="btn accent" type="button">Подключить</button>
+						<button id="wifi-back-ap" class="btn" type="button">Отмена</button>
+					</div>
+				</div>
+				<code id="wifi-status" class="status">Загрузка статуса Wi-Fi...</code>
+			</div>
+
+			<div class="card card-record">
+				<div class="title">Запись экрана с дрона</div>
+				<div class="muted">
+					Записывает ros2 bag с топиками <code id="record-image-topic">/main_camera/image_raw</code> и
+					<code id="record-info-topic">/main_camera/camera_info</code> в папку <code>~/screens</code>.
+				</div>
+				<label for="bag-prefix">Имя файла</label>
+				<input id="bag-prefix" type="text" value="technic_screen" autocomplete="off">
+				<div class="row">
+					<button id="camera-btn" class="btn" type="button" title="Камера для записи">Главная камера</button>
+					<button id="record-btn" class="btn danger">Начать запись</button>
+				</div>
+				<code id="record-status" class="status">Запись не запущена.</code>
+			</div>
+
+			<div class="card card-convert">
+				<div class="title">Конвертация записи в .mp4</div>
+				<div class="muted">
+					Укажите путь к папке записи ros2 bag на дроне. Видео сохранится рядом
+					с тем же именем и расширением <code>.mp4</code>.
+				</div>
+				<label for="convert-path">Путь к записи</label>
+				<input id="convert-path" type="text" value="~/screens/" autocomplete="off" spellcheck="false"
+				       placeholder="~/screens/technic_screen_main_20261001_183639">
+				<div class="row">
+					<button id="convert-btn" class="btn accent" type="button">Конвертировать</button>
+				</div>
+				<code id="convert-status" class="status">Конвертация не запущена.</code>
+			</div>
+
+			<div class="card card-yaw">
+				<div class="title">Yaw</div>
+				<div class="muted">Удерживайте стрелку для вращения, отпустите для остановки.</div>
+				<label for="yaw-rate">Скорость yaw, рад/с</label>
+				<input id="yaw-rate" type="number" min="0" step="0.1" value="0.6">
+				<div class="row">
+					<button id="yaw-left" class="btn arrow" aria-label="Yaw left">&#8634;</button>
+					<button id="yaw-right" class="btn arrow" aria-label="Yaw right">&#8635;</button>
+				</div>
+				<code id="yaw-status" class="status">Yaw остановлен.</code>
+			</div>
+
+			<div class="card card-servo">
+				<div class="title">Сервопривод</div>
+				<div class="muted">Аппаратный PWM на wPi 17: range 20000, clock 24.</div>
+				<div class="grid-2">
+					<div>
+						<label for="servo-pulse">PWM, мкс</label>
+						<input id="servo-pulse" type="number" min="1000" max="2000" step="100" value="1500">
+					</div>
+					<div>
+						<label for="servo-step">Шаг, мкс</label>
+						<input id="servo-step" type="number" min="100" max="500" step="100" value="100">
+					</div>
+				</div>
+				<div class="row">
+					<button id="servo-down" class="btn arrow" aria-label="Servo down">&#8592;</button>
+					<button id="servo-up" class="btn arrow" aria-label="Servo up">&#8594;</button>
+				</div>
+				<code id="servo-status" class="status">Сервопривод: 1500 мкс.</code>
+			</div>
+		</div>
+
+		<div class="pill-row">
+			<a class="pill green" href="takeoff.html">Takeoff</a>
+			<a class="pill red" href="land.html">Landing</a>
+		</div>
+	</div>
+
+	<script>
+		// На мобильных браузерах дополнительно блокируем pinch/double-tap zoom.
+		document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+		document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+		let lastTouchEnd = 0;
+		document.addEventListener('touchend', (event) => {
+			const now = Date.now();
+			if (now - lastTouchEnd <= 300) {
+				event.preventDefault();
+			}
+			lastTouchEnd = now;
+		}, { passive: false });
+
+		const rosUrl = 'ws://' + location.hostname + ':9090';
+		const ros = new ROSLIB.Ros({ url: rosUrl });
+		const rosStatus = document.getElementById('ros-status');
+
+		const execSrv = new ROSLIB.Service({ ros, name: '/exec', serviceType: 'technic_web/srv/Execute' });
+		const yawRateSrv = new ROSLIB.Service({ ros, name: '/set_yaw_rate', serviceType: 'technic_web/srv/SetYawRate' });
+
+		const recordBtn = document.getElementById('record-btn');
+		const recordStatus = document.getElementById('record-status');
+		const bagPrefix = document.getElementById('bag-prefix');
+		const cameraBtn = document.getElementById('camera-btn');
+		const recordImageTopic = document.getElementById('record-image-topic');
+		const recordInfoTopic = document.getElementById('record-info-topic');
+		const yawRateInput = document.getElementById('yaw-rate');
+		const yawStatus = document.getElementById('yaw-status');
+		const servoPulseInput = document.getElementById('servo-pulse');
+		const servoStepInput = document.getElementById('servo-step');
+		const servoDownBtn = document.getElementById('servo-down');
+		const servoUpBtn = document.getElementById('servo-up');
+		const servoStatus = document.getElementById('servo-status');
+
+		let recording = false;
+		let currentBagFile = '';
+		let servoInitialized = false;
+		let servoBusy = false;
+
+		function setRosState(text, className) {
+			rosStatus.textContent = text;
+			if (className === 'connected') {
+			    rosStatus.style.color = '#4ade80';
+			} else if (className === 'closed') {
+			    rosStatus.style.color = '#f87171';
+			} else {
+			    rosStatus.style.color = '';
+			}
+		}
+
+		ros.on('connection', () => setRosState('ROS: connected (' + rosUrl + ')', 'connected'));
+		ros.on('error', (error) => setRosState('ROS error: ' + error, 'closed'));
+		ros.on('close', () => {
+			setRosState('ROS: closed, reconnecting...', 'closed');
+			setTimeout(() => ros.connect(rosUrl), 2000);
+		});
+
+		function shellQuote(value) {
+			return "'" + String(value).replace(/'/g, "'\\''") + "'";
+		}
+
+		function callExec(cmd, timeoutMs = 0) {
+			return new Promise((resolve, reject) => {
+				let settled = false;
+				let timer = null;
+				const finish = (callback, value) => {
+					if (settled) return;
+					settled = true;
+					if (timer !== null) clearTimeout(timer);
+					callback(value);
+				};
+				if (timeoutMs > 0) {
+					timer = setTimeout(
+						() => finish(reject, new Error('Нет ответа от /exec за ' + (timeoutMs / 1000) + ' с')),
+						timeoutMs
+					);
+				}
+				execSrv.callService(
+					new ROSLIB.ServiceRequest({ cmd: cmd }),
+					(res) => {
+						if (res.code === 0) {
+							finish(resolve, (res.output || '').trim());
+						} else {
+							finish(reject, new Error((res.output || 'Command failed') + ' (code ' + res.code + ')'));
+						}
+					},
+					(error) => finish(reject, new Error(String(error)))
+				);
+			});
+		}
+
+		const CAMERAS = {
+			main: {
+				label: 'Главная камера',
+				image: '/main_camera/image_raw',
+				info: '/main_camera/camera_info',
+			},
+			second: {
+				label: 'Вторая камера',
+				image: '/second_camera/second_camera/image_raw',
+				info: '/second_camera/second_camera/camera_info',
+			},
+		};
+		// Bags are written to ~/screens of the user running technic.service.
+		const BAG_DIR = '$HOME/screens';
+
+		let recordCamera = 'main';
+		try {
+			if (CAMERAS[localStorage.getItem('technic_record_camera')]) {
+				recordCamera = localStorage.getItem('technic_record_camera');
+			}
+		} catch (error) { /* storage unavailable: keep the main camera */ }
+
+		function showRecordCamera() {
+			const camera = CAMERAS[recordCamera];
+			cameraBtn.textContent = camera.label;
+			recordImageTopic.textContent = camera.image;
+			recordInfoTopic.textContent = camera.info;
+		}
+
+		cameraBtn.addEventListener('click', () => {
+			if (recording) return;
+			recordCamera = recordCamera === 'main' ? 'second' : 'main';
+			try { localStorage.setItem('technic_record_camera', recordCamera); } catch (error) { /* ignore */ }
+			showRecordCamera();
+		});
+		showRecordCamera();
+
+		function safeBagPrefix() {
+			return (bagPrefix.value || 'technic_screen').trim().replace(/[^a-zA-Z0-9_.-]/g, '_') || 'technic_screen';
+		}
+
+		async function startRecording() {
+			recordBtn.disabled = true;
+			cameraBtn.disabled = true;
+			recordStatus.textContent = 'Запускаю ros2 bag record...';
+			const prefix = safeBagPrefix();
+			const camera = CAMERAS[recordCamera];
+			const cmd = [
+				'bash -c',
+				shellQuote(
+					'mkdir -p "' + BAG_DIR + '"; ' +
+					'file="' + BAG_DIR + '/' + prefix + '_' + recordCamera + '_$(date +%Y%m%d_%H%M%S)"; ' +
+					'nohup ros2 bag record -o "$file" ' + camera.image + ' ' + camera.info +
+					' >/tmp/technic_rosbag_record.log 2>&1 & ' +
+					'echo "$!" >/tmp/technic_rosbag_record.pid; ' +
+					'sleep 0.3; ' +
+					'kill -0 "$(cat /tmp/technic_rosbag_record.pid)" 2>/dev/null || { cat /tmp/technic_rosbag_record.log; rm -f /tmp/technic_rosbag_record.pid; exit 1; }; ' +
+					'echo "$file"'
+				)
+			].join(' ');
+
+			try {
+				currentBagFile = await callExec(cmd);
+				recording = true;
+				recordBtn.textContent = 'Остановить запись';
+				recordBtn.classList.add('recording');
+				recordStatus.textContent = 'Идет запись (' + camera.label.toLowerCase() + '): ' + currentBagFile;
+			} catch (error) {
+				recordStatus.textContent = 'Ошибка запуска записи: ' + error.message;
+			} finally {
+				recordBtn.disabled = false;
+				cameraBtn.disabled = recording;
+			}
+		}
+
+		async function stopRecording() {
+			recordBtn.disabled = true;
+			recordStatus.textContent = 'Останавливаю ros2 bag record...';
+			const cmd = [
+				'bash -c',
+				shellQuote(
+					'if [ -s /tmp/technic_rosbag_record.pid ]; then ' +
+					'pid="$(cat /tmp/technic_rosbag_record.pid)"; ' +
+					'kill -INT "$pid" 2>/dev/null || true; ' +
+					'rm -f /tmp/technic_rosbag_record.pid; ' +
+					'echo stopped; ' +
+					'else echo "not running"; fi'
+				)
+			].join(' ');
+
+			try {
+				await callExec(cmd);
+				recordStatus.textContent = 'Запись остановлена. Файл: ' + (currentBagFile || 'имя файла неизвестно');
+				// offer the new recording for conversion
+				if (currentBagFile && !convertTimer) convertPath.value = currentBagFile;
+			} catch (error) {
+				recordStatus.textContent = 'Ошибка остановки записи: ' + error.message;
+			} finally {
+				recording = false;
+				recordBtn.textContent = 'Начать запись';
+				recordBtn.classList.remove('recording');
+				recordBtn.disabled = false;
+				cameraBtn.disabled = false;
+			}
+		}
+
+		recordBtn.addEventListener('click', () => recording ? stopRecording() : startRecording());
+
+		// bag -> mp4 conversion runs in the background: /exec blocks until a command
+		// finishes, so the page only starts it and then polls its log.
+		const convertPath = document.getElementById('convert-path');
+		const convertBtn = document.getElementById('convert-btn');
+		const convertStatus = document.getElementById('convert-status');
+		const CONVERT_LOG = '/tmp/technic_bag_to_mp4.log';
+		const CONVERT_PID = '/tmp/technic_bag_to_mp4.pid';
+		let convertTimer = null;
+
+		function setConverting(active) {
+			convertBtn.disabled = active;
+			convertPath.disabled = active;
+			convertBtn.textContent = active ? 'Конвертация...' : 'Конвертировать';
+		}
+
+		function describeConvertLog(log) {
+			const lines = log.split('\n').map((line) => line.trim()).filter(Boolean);
+			const last = (prefix) => [...lines].reverse().find((line) => line.startsWith(prefix));
+			const ok = last('OK ');
+			if (ok) return { done: true, text: 'Готово: ' + ok.slice(3) };
+			const error = last('ERROR ');
+			if (error) return { done: true, text: 'Ошибка: ' + error.slice(6) };
+			const progress = last('PROGRESS ');
+			if (progress) {
+				const [done, total] = progress.slice(9).split('/').map(Number);
+				const percent = total ? Math.floor(done * 100 / total) : 0;
+				return { done: false, text: 'Конвертация: ' + percent + '% (' + done + ' из ' + total + ' кадров)' };
+			}
+			const info = last('INFO ');
+			return { done: false, text: info ? 'Подготовка: ' + info.slice(5) : 'Подготовка...' };
+		}
+
+		async function pollConversion() {
+			const cmd = [
+				'bash -c',
+				shellQuote(
+					'if [ -s ' + CONVERT_PID + ' ] && kill -0 "$(cat ' + CONVERT_PID + ')" 2>/dev/null; ' +
+					'then echo RUNNING; else echo FINISHED; fi; ' +
+					'tail -n 20 ' + CONVERT_LOG + ' 2>/dev/null || true'
+				)
+			].join(' ');
+			try {
+				const output = await callExec(cmd, 10000);
+				const running = output.startsWith('RUNNING');
+				const state = describeConvertLog(output.replace(/^(RUNNING|FINISHED)\n?/, ''));
+				if (running) {
+					convertStatus.textContent = state.text;
+					return;
+				}
+				// The process has exited: show its result (a crash leaves no OK/ERROR line).
+				convertStatus.textContent = state.done ? state.text
+					: 'Конвертация прервана. Лог: ' + CONVERT_LOG;
+			} catch (error) {
+				convertStatus.textContent = 'Нет связи с дроном: ' + error.message;
+				return;  // keep polling, the conversion itself continues on the drone
+			}
+			clearInterval(convertTimer);
+			convertTimer = null;
+			setConverting(false);
+		}
+
+		async function startConversion() {
+			const path = convertPath.value.trim();
+			if (!path || /\/$/.test(path)) {
+				convertStatus.textContent = 'Укажите путь к папке записи ros2 bag';
+				return;
+			}
+			setConverting(true);
+			convertStatus.textContent = 'Запускаю конвертацию...';
+			const cmd = [
+				'bash -c',
+				shellQuote(
+					'if [ -s ' + CONVERT_PID + ' ] && kill -0 "$(cat ' + CONVERT_PID + ')" 2>/dev/null; ' +
+					'then echo "ERROR уже идет другая конвертация"; exit 1; fi; ' +
+					'nohup ros2 run technic_web bag_to_mp4 ' + shellQuote(path) +
+					' >' + CONVERT_LOG + ' 2>&1 < /dev/null & ' +
+					'echo "$!" >' + CONVERT_PID
+				)
+			].join(' ');
+			try {
+				await callExec(cmd, 10000);
+				convertTimer = setInterval(pollConversion, 1000);
+				pollConversion();
+			} catch (error) {
+				convertStatus.textContent = 'Ошибка запуска: ' + error.message;
+				setConverting(false);
+			}
+		}
+
+		convertBtn.addEventListener('click', startConversion);
+
+		// After a page reload, pick up a conversion that is still running on the drone.
+		ros.on('connection', async () => {
+			if (convertTimer) return;
+			try {
+				const output = await callExec(
+					'bash -c ' + shellQuote(
+						'[ -s ' + CONVERT_PID + ' ] && kill -0 "$(cat ' + CONVERT_PID + ')" 2>/dev/null && echo RUNNING || true'
+					), 10000);
+				if (output === 'RUNNING' && !convertTimer) {
+					setConverting(true);
+					convertTimer = setInterval(pollConversion, 1000);
+					pollConversion();
+				}
+			} catch (error) { /* /exec unavailable yet: nothing to resume */ }
+		});
+
+		function setYawRate(rate) {
+			yawRateSrv.callService(
+				new ROSLIB.ServiceRequest({ yaw_rate: rate }),
+				(res) => {
+					yawStatus.textContent = res.success
+						? 'Yaw rate: ' + rate.toFixed(2) + ' рад/с'
+						: 'Yaw error: ' + (res.message || 'service returned false');
+				},
+				(error) => yawStatus.textContent = 'Yaw service error: ' + error
+			);
+		}
+
+		function bindHoldButton(button, start, stop) {
+			let active = false;
+			const begin = (event) => {
+				event.preventDefault();
+				if (active) return;
+				active = true;
+				start();
+			};
+			const end = (event) => {
+				if (!active) return;
+				if (event) event.preventDefault();
+				active = false;
+				stop();
+			};
+			button.addEventListener('pointerdown', begin);
+			button.addEventListener('pointerup', end);
+			button.addEventListener('pointerleave', end);
+			button.addEventListener('pointercancel', end);
+		}
+
+		function yawMagnitude() {
+			const value = Math.abs(parseFloat(yawRateInput.value));
+			return Number.isFinite(value) && value > 0 ? value : 0.6;
+		}
+
+		bindHoldButton(
+			document.getElementById('yaw-left'),
+			() => setYawRate(yawMagnitude()),
+			() => {
+				setYawRate(0);
+				yawStatus.textContent = 'Yaw остановлен.';
+			}
+		);
+		bindHoldButton(
+			document.getElementById('yaw-right'),
+			() => setYawRate(-yawMagnitude()),
+			() => {
+				setYawRate(0);
+				yawStatus.textContent = 'Yaw остановлен.';
+			}
+		);
+
+		function clamp(value, min, max) {
+			return Math.min(max, Math.max(min, value));
+		}
+
+		async function initializeServo() {
+			const cmd =
+				'/usr/bin/gpio mode 17 pwm 2>&1 && ' +
+				'sleep 1 && ' +
+				'/usr/bin/gpio pwmr 17 20000 2>&1 && ' +
+				'sleep 1 && ' +
+				'/usr/bin/gpio pwmc 17 24 2>&1 && ' +
+				'sleep 1 && ' +
+				'echo "PWM initialized"';
+			await callExec(cmd, 10000);
+			servoInitialized = true;
+		}
+
+		async function moveServo(direction) {
+			if (servoBusy) return;
+			servoBusy = true;
+			servoDownBtn.disabled = true;
+			servoUpBtn.disabled = true;
+
+			try {
+				const pulse = parseInt(servoPulseInput.value, 10);
+				const step = parseInt(servoStepInput.value, 10);
+				const nextPulse = clamp(
+					(Number.isFinite(pulse) ? pulse : 1500) + direction * (Number.isFinite(step) ? step : 100),
+					1000,
+					2000
+				);
+				servoPulseInput.value = String(nextPulse);
+				if (!servoInitialized) {
+					servoStatus.textContent = 'Инициализация PWM...';
+					await initializeServo();
+				}
+				servoStatus.textContent = 'Отправляю сервопривод: ' + nextPulse + ' мкс...';
+				const cmd = '/usr/bin/gpio pwm 17 ' + nextPulse + ' 2>&1';
+				const output = await callExec(cmd, 4000);
+				servoStatus.textContent = 'Сервопривод: ' + nextPulse + ' мкс' + (output ? '\n' + output : '');
+			} catch (error) {
+				servoInitialized = false;
+				servoStatus.textContent = 'Ошибка сервопривода: ' + error.message;
+			} finally {
+				servoBusy = false;
+				servoDownBtn.disabled = false;
+				servoUpBtn.disabled = false;
+			}
+		}
+
+		servoDownBtn.addEventListener('click', () => moveServo(-1));
+		servoUpBtn.addEventListener('click', () => moveServo(1));
+
+		const wifiSsidInput = document.getElementById('wifi-ssid');
+		const wifiPasswordInput = document.getElementById('wifi-password');
+		const wifiSaveBtn = document.getElementById('wifi-save');
+		const wifiStatus = document.getElementById('wifi-status');
+		const wifiModeLabel = document.getElementById('wifi-mode-label');
+		const wifiTitle = document.getElementById('wifi-title');
+		const wifiApBlock = document.getElementById('wifi-ap-block');
+		const wifiClientSwitch = document.getElementById('wifi-client-switch');
+		const wifiToClientBtn = document.getElementById('wifi-to-client');
+		const wifiClientPanel = document.getElementById('wifi-client-panel');
+		const wifiClientList = document.getElementById('wifi-client-list');
+		const wifiClientSsid = document.getElementById('wifi-client-ssid');
+		const wifiClientPassword = document.getElementById('wifi-client-password');
+		const wifiScanBtn = document.getElementById('wifi-scan');
+		const wifiClientConnectBtn = document.getElementById('wifi-client-connect');
+		const wifiBackApBtn = document.getElementById('wifi-back-ap');
+		let wifiEditable = false;
+		let wifiLink = 'ap';
+		let wifiClientOpen = false;
+		let wifiHoldStatus = false;
+		let wifiExpectDrop = false;
+		let wifiFailureShown = '';
+		let wifiLastData = null;
+		let wifiPollTimer = null;
+		let wifiSaving = false;
+		let wifiFormDirty = false;
+
+		function parseWifiJson(raw) {
+			const line = String(raw || '')
+				.split('\n')
+				.map((item) => item.trim())
+				.filter((item) => item.startsWith('{') || item.startsWith('['))
+				.pop();
+			if (!line) throw new Error('пустой ответ');
+			return JSON.parse(line);
+		}
+
+		function setWifiBusy(busy) {
+			wifiSaving = busy;
+			wifiSaveBtn.disabled = busy || !wifiEditable || wifiClientOpen;
+			wifiToClientBtn.disabled = busy;
+			wifiScanBtn.disabled = busy;
+			wifiClientConnectBtn.disabled = busy;
+			wifiBackApBtn.disabled = busy;
+		}
+
+		function setWifiFormEnabled(enabled) {
+			wifiSsidInput.disabled = !enabled;
+			wifiPasswordInput.disabled = !enabled;
+			wifiSaveBtn.disabled = !enabled || wifiSaving;
+		}
+
+		function consoleUrl(data) {
+			const host = (data && data.hostname) ? data.hostname : 'technic';
+			return 'http://' + host + '.local:8000/technic/';
+		}
+
+		function applyWifiStatus(data) {
+			wifiLastData = data;
+			wifiEditable = !!data.editable;
+			wifiLink = data.link === 'client' ? 'client' : 'ap';
+			if (!wifiEditable) wifiClientOpen = false;
+			if (wifiLink === 'client' && data.client_state === 'connected') {
+				wifiHoldStatus = false;
+				wifiExpectDrop = false;
+			} else if (data.client_state === 'failed') {
+				wifiHoldStatus = false;
+				wifiExpectDrop = false;
+			} else if (wifiLink === 'client') {
+				wifiHoldStatus = false;
+			}
+			if (wifiLink === 'client') wifiClientOpen = true;
+			const showClient = wifiEditable && wifiClientOpen;
+
+			if (data.mode === 'custom' && wifiLink === 'client') {
+				wifiModeLabel.textContent = 'Auto — подключение к сети Wi-Fi';
+			} else if (data.mode === 'custom') {
+				wifiModeLabel.textContent = 'Auto — имя и пароль можно сменить';
+			} else if (data.mode === 'locked') {
+				wifiModeLabel.textContent = 'AP — имя зафиксировано';
+			} else {
+				wifiModeLabel.textContent = 'ползунок не читается (GPIO), используется стандартное имя';
+			}
+			const gpioHint = ' (GPIO=' + (data.gpio === '' || data.gpio == null ? '?' : data.gpio) +
+				', ' + (data.backend || '?') + ')';
+			wifiModeLabel.textContent += gpioHint;
+
+			wifiTitle.textContent = showClient ? 'Подключение к Wi-Fi' : 'Wi-Fi точка доступа';
+			wifiApBlock.hidden = showClient;
+			wifiClientSwitch.hidden = !wifiEditable || showClient;
+			wifiClientPanel.hidden = !showClient;
+			wifiBackApBtn.textContent = wifiLink === 'client' ? 'Раздавать свою точку' : 'Отмена';
+
+			const shownSsid = wifiEditable
+				? (data.custom_ssid || data.factory_ssid || data.active_ssid || '')
+				: (data.factory_ssid || data.active_ssid || '');
+			if (!wifiFormDirty && document.activeElement !== wifiSsidInput) {
+				wifiSsidInput.value = shownSsid;
+			}
+			if (!wifiEditable) {
+				wifiFormDirty = false;
+				wifiPasswordInput.value = '';
+			}
+			setWifiFormEnabled(wifiEditable && !showClient);
+			wifiToClientBtn.disabled = wifiSaving;
+			wifiScanBtn.disabled = wifiSaving;
+			wifiClientConnectBtn.disabled = wifiSaving;
+			wifiBackApBtn.disabled = wifiSaving;
+			if (wifiSaving || wifiHoldStatus) return;
+			if (data.client_state === 'failed' && data.client_message &&
+				wifiFailureShown !== data.client_message && showClient && wifiLink !== 'client') {
+				wifiFailureShown = data.client_message;
+				wifiStatus.textContent = data.client_message;
+				return;
+			}
+			if (data.client_state !== 'failed') wifiFailureShown = '';
+			if (showClient && wifiLink !== 'client') return;
+
+			const air = data.active_ssid || '—';
+			const profile = data.profile_ssid || '';
+			const saved = data.custom_ssid || '';
+			if (showClient && wifiLink === 'client') {
+				const ssid = data.client_ssid || air;
+				if (data.client_state === 'connecting') {
+					wifiStatus.textContent = 'Подключение к «' + ssid + '». Своя точка доступа остаётся включённой.';
+					return;
+				}
+				let text = 'Подключено к «' + ssid + '». Своя точка доступа работает.';
+				if (data.client_ip) text += ' IP: ' + data.client_ip + '.';
+				text += ' Консоль: ' + consoleUrl(data);
+				wifiStatus.textContent = text;
+				return;
+			}
+			if (wifiEditable) {
+				let text = 'В эфире: ' + air;
+				if (profile && profile !== air) {
+					text += '. Профиль NM: ' + profile;
+				}
+				if (saved && saved !== air) {
+					text += '. Сохранено: «' + saved + '» (ещё не в эфире)';
+				}
+				if (data.client_state === 'failed' && data.client_message) {
+					wifiFailureShown = data.client_message;
+					text += '. ' + data.client_message;
+				} else {
+					text += '. Сохранение перезапустит точку доступа на несколько секунд.';
+				}
+				wifiStatus.textContent = text;
+			} else {
+				wifiStatus.textContent = 'Сейчас раздаётся стандартная сеть ' +
+					(data.factory_ssid || air) +
+					'. Переведите ползунок на Auto, чтобы задать другое имя или подключиться к сети.';
+			}
+		}
+
+		async function refreshWifiStatus() {
+			if (wifiSaving) return;
+			try {
+				const raw = await callExec('sudo -n /usr/local/libexec/technic-wifi-ctl.sh status', 5000);
+				const data = parseWifiJson(raw);
+				applyWifiStatus(data);
+			} catch (error) {
+				if (wifiSaving || wifiHoldStatus || wifiExpectDrop) return;
+				setWifiFormEnabled(false);
+				wifiModeLabel.textContent = 'нет связи со службой Wi-Fi';
+				wifiStatus.textContent = 'Не удалось прочитать статус: ' + error.message;
+			}
+		}
+
+		async function saveWifiSettings() {
+			if (!wifiEditable || wifiLink === 'client') {
+				wifiStatus.textContent = 'Смена имени недоступна в этом режиме.';
+				return;
+			}
+			const ssid = (wifiSsidInput.value || '').trim();
+			const password = wifiPasswordInput.value || '';
+			if (ssid.length < 1 || ssid.length > 32) {
+				wifiStatus.textContent = 'Имя сети должно быть от 1 до 32 символов.';
+				return;
+			}
+			if (password.length < 8 || password.length > 63) {
+				wifiStatus.textContent = 'Пароль должен быть от 8 до 63 символов.';
+				return;
+			}
+			setWifiBusy(true);
+			wifiStatus.textContent = 'Сохраняю и перезапускаю Wi-Fi. Сеть пропадёт на 5–10 секунд...';
+			const cmd = [
+				'sudo -n /usr/local/libexec/technic-wifi-ctl.sh set-custom',
+				shellQuote(ssid),
+				shellQuote(password)
+			].join(' ');
+			try {
+				const output = await callExec(cmd, 15000);
+				wifiPasswordInput.value = '';
+				wifiFormDirty = false;
+				wifiStatus.textContent = 'Сохранено: «' + ssid +
+					'». Сеть сейчас перезапустится — подключитесь с новым паролем. ' + output;
+				setTimeout(refreshWifiStatus, 4000);
+			} catch (error) {
+				wifiStatus.textContent = 'Ошибка сохранения: ' + error.message;
+			} finally {
+				setWifiBusy(false);
+			}
+		}
+
+		async function scanWifi() {
+			if (!wifiEditable) return;
+			setWifiBusy(true);
+			wifiStatus.textContent = 'Ищу сети Wi-Fi...';
+			let message = '';
+			try {
+				const raw = await callExec('sudo -n /usr/local/libexec/technic-wifi-ctl.sh scan', 20000);
+				const nets = parseWifiJson(raw);
+				if (!Array.isArray(nets)) throw new Error('некорректный список сетей');
+				const selected = wifiClientSsid.value;
+				wifiClientList.replaceChildren();
+				const placeholder = document.createElement('option');
+				placeholder.value = '';
+				placeholder.textContent = nets.length ? 'Выберите сеть' : 'Сети не найдены';
+				wifiClientList.appendChild(placeholder);
+				nets.forEach((net) => {
+					const option = document.createElement('option');
+					option.value = net.ssid || '';
+					const security = net.security ? net.security : 'открытая';
+					option.textContent = (net.ssid || '') + ' (' + security + ', ' + (net.signal || 0) + '%)';
+					wifiClientList.appendChild(option);
+				});
+				if (selected) wifiClientList.value = selected;
+				message = nets.length
+					? 'Найдено сетей: ' + nets.length + '. Выберите сеть или введите имя вручную.'
+					: 'Сети не найдены. Введите имя вручную или обновите список.';
+			} catch (error) {
+				message = 'Не удалось получить список сетей: ' + error.message;
+			} finally {
+				setWifiBusy(false);
+				if (wifiLastData) applyWifiStatus(wifiLastData);
+				wifiStatus.textContent = message;
+			}
+		}
+
+		async function connectWifiClient() {
+			if (!wifiEditable) return;
+			const ssid = (wifiClientSsid.value || wifiClientList.value || '').trim();
+			const password = wifiClientPassword.value || '';
+			if (ssid.length < 1 || ssid.length > 32) {
+				wifiStatus.textContent = 'Имя сети должно быть от 1 до 32 символов.';
+				return;
+			}
+			if (password && (password.length < 8 || password.length > 63)) {
+				wifiStatus.textContent = 'Пароль должен быть от 8 до 63 символов либо пустым для открытой сети.';
+				return;
+			}
+			const url = consoleUrl(wifiLastData);
+			if (!window.confirm(
+				'Дрон подключится к «' + ssid + '» и продолжит раздавать свою точку доступа. ' +
+				'Адрес в выбранной сети: ' + url
+			)) return;
+			setWifiBusy(true);
+			wifiHoldStatus = true;
+			wifiExpectDrop = false;
+			wifiStatus.textContent = 'Подключаюсь к «' + ssid + '». Своя точка доступа остаётся.';
+			const cmd = [
+				'sudo -n /usr/local/libexec/technic-wifi-ctl.sh set-client',
+				shellQuote(ssid),
+				shellQuote(password)
+			].join(' ');
+			try {
+				const output = await callExec(cmd, 15000);
+				wifiClientPassword.value = '';
+				wifiStatus.textContent = 'Команда принята. Своя точка доступа остаётся, дрон подключается к «' +
+					ssid + '». В той сети консоль: ' + url + '. ' + output;
+			} catch (error) {
+				wifiHoldStatus = false;
+				wifiExpectDrop = false;
+				wifiStatus.textContent = 'Ошибка подключения: ' + error.message;
+			} finally {
+				setWifiBusy(false);
+			}
+		}
+
+		async function backToOwnAp() {
+			if (wifiLink !== 'client') {
+				wifiClientOpen = false;
+				wifiHoldStatus = false;
+				wifiExpectDrop = false;
+				if (wifiLastData) applyWifiStatus(wifiLastData);
+				return;
+			}
+			if (!window.confirm('Дрон отключится от выбранной сети. Своя точка доступа продолжит работать.')) return;
+			setWifiBusy(true);
+			wifiHoldStatus = true;
+			wifiExpectDrop = false;
+			wifiStatus.textContent = 'Отключаюсь от выбранной сети. Своя точка доступа остаётся.';
+			try {
+				const output = await callExec('sudo -n /usr/local/libexec/technic-wifi-ctl.sh set-ap', 15000);
+				wifiClientOpen = false;
+				wifiStatus.textContent = 'Подключение к чужой сети выключено. Своя точка доступа работает. ' + output;
+			} catch (error) {
+				wifiHoldStatus = false;
+				wifiExpectDrop = false;
+				wifiStatus.textContent = 'Не удалось вернуть точку доступа: ' + error.message;
+			} finally {
+				setWifiBusy(false);
+			}
+		}
+
+		wifiSsidInput.addEventListener('input', () => { wifiFormDirty = true; });
+		wifiPasswordInput.addEventListener('input', () => { wifiFormDirty = true; });
+		wifiSaveBtn.addEventListener('click', () => saveWifiSettings());
+		wifiToClientBtn.addEventListener('click', () => {
+			wifiClientOpen = true;
+			if (wifiLastData) applyWifiStatus(wifiLastData);
+			scanWifi();
+		});
+		wifiScanBtn.addEventListener('click', () => scanWifi());
+		wifiClientConnectBtn.addEventListener('click', () => connectWifiClient());
+		wifiBackApBtn.addEventListener('click', () => backToOwnAp());
+		wifiClientList.addEventListener('change', () => {
+			if (!wifiClientList.value) return;
+			wifiClientSsid.value = wifiClientList.value;
+		});
+		ros.on('connection', () => {
+			refreshWifiStatus();
+			if (wifiPollTimer) clearInterval(wifiPollTimer);
+			wifiPollTimer = setInterval(refreshWifiStatus, 2500);
+		});
+	</script>
+</body>
+</html>

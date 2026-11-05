@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>technic_optical_flow</name>
+  <version>0.1.0</version>
+  <description>Optical flow from the down-facing camera for PX4 (OPTICAL_FLOW_RAD via mavros px4flow), ported from technic/optical_flow.</description>
+
+  <maintainer email="support@skyris.pro">Skyris</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>cv_bridge</depend>
+  <depend>geometry_msgs</depend>
+  <depend>libopencv-dev</depend>
+  <depend>mavros_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Взлёт — Technic /navigate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+  <style>
+    :root{
+      --bg:#0c0c0e;
+      --panel:#1b1c1f;
+      --panel-2:#222327;
+      --text:#e7e7ea;
+      --muted:#a8abb3;
+      --accent:#2ea0ff;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+      --radius:18px;
+      --gap:10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+      padding: clamp(10px, 2vw, 18px);
+      display: flex;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+    .card {
+      width: min(900px, 100%);
+      padding: clamp(16px, 2.5vw, 24px);
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .title { font-weight: 600; font-size: 16px; margin-bottom: 6px; }
+    .home-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .home-link:hover { text-decoration: underline; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); align-items: end; }
+    label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--panel-2);
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .btn {
+      min-height: 38px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 19px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      line-height: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .btn:hover { background:#3b3f46; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .row { display:flex; gap: var(--gap); align-items:center; margin-top: 10px; }
+    .right { text-align:right; display:flex; gap:8px; }
+    .wrap { display:flex; flex-wrap:wrap; gap:6px; }
+    code.preview {
+      display:block;
+      padding:10px 12px;
+      background: var(--bg);
+      border-radius:12px;
+      margin-top:12px;
+      font-size:13px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ok { color:#4ade80; }
+    .err { color:#f87171; }
+    @media (max-width: 768px) {
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        height: 100dvh;
+        overflow: hidden;
+        align-items: flex-start;
+        padding:
+          calc(6px + env(safe-area-inset-top))
+          calc(6px + env(safe-area-inset-right))
+          calc(6px + env(safe-area-inset-bottom))
+          calc(6px + env(safe-area-inset-left));
+      }
+      .card {
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        overflow: hidden;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .page-head { margin-bottom: 0; flex: 0 0 auto; }
+      .title { font-size: 14px; margin-bottom: 2px; }
+      .home-link { font-size: 12px; }
+      .muted { font-size: 11px; }
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      label { font-size: 11px; margin-bottom: 3px; }
+      input[type="number"], input[type="text"], select {
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        margin-top: 0;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      .right { justify-content: flex-end; }
+      .btn { min-height: 34px; font-size: 12px; }
+      code.preview {
+        margin-top: 0;
+        padding: 6px 8px;
+        font-size: 10px;
+        max-height: 3.2em;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      #status { margin-top: 0 !important; flex: 0 0 auto; }
+      .muted:last-child { display: none; }
+      .card > div[style*="height"] { display: none; }
+    }
+    @media (max-height: 520px) and (orientation: landscape) {
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        height: 100dvh;
+        overflow: hidden;
+        align-items: flex-start;
+        padding:
+          calc(4px + env(safe-area-inset-top))
+          calc(6px + env(safe-area-inset-right))
+          calc(4px + env(safe-area-inset-bottom))
+          calc(6px + env(safe-area-inset-left));
+      }
+      .card {
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        overflow: hidden;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .page-head { margin-bottom: 0; }
+      .title { font-size: 12px; margin-bottom: 2px; }
+      .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+      label { font-size: 10px; margin-bottom: 2px; }
+      input[type="number"], input[type="text"], select { padding: 5px 6px; font-size: 11px; }
+      .row { flex-direction: row; align-items: center; margin-top: 0; gap: 6px; }
+      .btn { min-height: 30px; font-size: 11px; }
+      code.preview { max-height: 2.4em; overflow: hidden; font-size: 9px; margin-top: 0; padding: 4px 6px; flex: 0 0 auto; }
+      .muted:last-child { display: none; }
+      .card > div[style*="height"] { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="page-head">
+      <div>
+        <div class="title">Взлёт на заданную высоту (Technic /navigate)</div>
+        <div class="muted" id="ros-conn">ROS: подключение...</div>
+      </div>
+      <a href="index.html" class="home-link">← На главную</a>
+    </div>
+
+    <div style="height:8px"></div>
+
+    <div class="grid">
+      <div>
+        <label for="alt">Высота z (м)</label>
+        <input id="alt" type="text" inputmode="decimal" placeholder="1.0" value="1.0" />
+      </div>
+      <div>
+        <label for="speed">Скорость (м/с)</label>
+        <input id="speed" type="text" inputmode="decimal" placeholder="0.5" value="0.5" />
+      </div>
+      <div>
+        <label for="yaw">Yaw (рад)</label>
+        <input id="yaw" type="text" inputmode="decimal" placeholder="0.0" value="0.0" />
+      </div>
+      <div>
+        <label for="frame">frame_id</label>
+        <select id="frame">
+          <option value="body" selected>body (в теле)</option>
+          <option value="map">map</option>
+          <option value="aruco_map">aruco_map</option>
+          <option value="local_origin">local_origin</option>
+        </select>
+      </div>
+      <div>
+        <label for="arm">Автоарм</label>
+        <select id="arm">
+          <option value="true" selected>true</option>
+          <option value="false">false</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="height:8px"></div>
+
+    <div class="row">
+      <div class="wrap" aria-label="быстрые высоты">
+        <button class="btn" data-set="#alt:1">z 1.0 м</button>
+        <button class="btn" data-set="#alt:1.5">z 1.5 м</button>
+        <button class="btn" data-set="#alt:2">z 2.0 м</button>
+        <button class="btn" data-set="#alt:3">z 3.0 м</button>
+      </div>
+      <div style="flex:1"></div>
+      <div class="right">
+        <button id="save" class="btn">Сохранить</button>
+        <button id="run" class="btn primary">Взлёт</button>
+      </div>
+    </div>
+
+    <code class="preview" id="preview"></code>
+    <div id="status" class="muted" style="margin-top:6px"></div>
+
+    <div class="muted" style="margin-top:8px">
+      Требуется, чтобы были запущены ноды Technic и сервис <code>/navigate</code> (тип <code>technic/Navigate</code>). 
+      Команда выполняется в системе координат, выбранной в <code>frame_id</code>.
+    </div>
+  </div>
+
+  <script>
+    // ROS connect
+    const rosUrl = 'ws://' + location.hostname + ':9090';
+    const ros = new ROSLIB.Ros({ url: rosUrl });
+    const connEl = document.getElementById('ros-conn');
+    const statusEl = document.getElementById('status');
+    ros.on('connection', () => connEl.textContent = 'ROS: connected (' + rosUrl + ')');
+    ros.on('error', (e) => connEl.textContent = 'ROS error: ' + e);
+    ros.on('close', () => connEl.textContent = 'ROS: closed');
+
+    // Technic /navigate service
+    const navigateSrv = new ROSLIB.Service({ ros, name: '/navigate', serviceType: 'technic_web/srv/Navigate' });
+
+    // Params for history/compat
+    const navParamUI   = new ROSLIB.Param({ ros, name: '/navigate_ui/req_json' });
+    const navParamText = new ROSLIB.Param({ ros, name: '/navigate_ui/req_str' });
+
+    // Helpers
+    const $ = (sel) => document.querySelector(sel);
+    const norm = (v) => String(v ?? '').trim().replace(',', '.');
+
+    function buildRequest() {
+      const z       = norm($('#alt').value);
+      const speed   = norm($('#speed').value);
+      const yaw     = norm($('#yaw').value);
+      const frame   = $('#frame').value || 'body';
+      const autoArm = $('#arm').value === 'true';
+
+      // числовые преобразования (NaN -> null для явной ошибки)
+      const fz     = parseFloat(z);
+      const fspd   = parseFloat(speed);
+      const fyaw   = parseFloat(yaw);
+
+      return {
+        x: 0.0, y: 0.0, z: fz,
+        yaw: isNaN(fyaw) ? 0.0 : fyaw,
+        speed: isNaN(fspd) ? 0.5 : fspd,
+        frame_id: frame,
+        auto_arm: autoArm
+      };
+    }
+
+    function validate(req) {
+      if (typeof req.z !== 'number' || isNaN(req.z) || req.z <= 0) {
+        throw new Error('Высота z должна быть положительным числом.');
+      }
+      if (typeof req.speed !== 'number' || isNaN(req.speed) || req.speed <= 0) {
+        throw new Error('Скорость должна быть положительным числом.');
+      }
+      if (!req.frame_id) throw new Error('frame_id не задан.');
+    }
+
+    function renderPreview() {
+      const r = buildRequest();
+      // превью как готовая команда для терминала (yaml-объект)
+      const yaml = `{x: 0.0, y: 0.0, z: ${r.z}, yaw: ${r.yaw}, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: ${r.auto_arm ? 'true' : 'false'}}`;
+      $('#preview').textContent = `rosservice call /navigate "${yaml}"`;
+    }
+
+    // quick-set buttons
+    document.querySelectorAll('[data-set]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [sel, val] = btn.dataset.set.split(':');
+        const el = $(sel);
+        if (el) { el.value = val; renderPreview(); }
+      });
+    });
+
+    // inputs events
+    ['alt','speed','yaw','frame','arm'].forEach(id => {
+      $('#'+id).addEventListener('input', renderPreview);
+      $('#'+id).addEventListener('change', renderPreview);
+    });
+
+    renderPreview();
+
+    async function saveReq(req) {
+      // сохраняем JSON и текстовую форму превью
+      const yaml = `{x: 0.0, y: 0.0, z: ${req.z}, yaw: ${req.yaw}, speed: ${req.speed}, frame_id: '${req.frame_id}', auto_arm: ${req.auto_arm ? 'true' : 'false'}}`;
+      return Promise.all([
+        new Promise((res, rej)=> navParamUI.set(JSON.stringify(req), res, rej)),
+        new Promise((res, rej)=> navParamText.set(yaml, res, rej)),
+      ]);
+    }
+
+    // SAVE
+    document.getElementById('save').addEventListener('click', async () => {
+      statusEl.textContent = 'Сохранение параметров…';
+      try {
+        const req = buildRequest();
+        validate(req);
+        await saveReq(req);
+        statusEl.innerHTML = '<span class="ok">Сохранено.</span>';
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">Ошибка: '+ e +'</span>';
+      }
+    });
+
+    // RUN (takeoff)
+    document.getElementById('run').addEventListener('click', async () => {
+      statusEl.textContent = 'Отправка команды взлёта…';
+      try {
+        const req = buildRequest();
+        validate(req);
+        await saveReq(req); // чтобы оставалось в параметрах
+
+        const rosReq = new ROSLIB.ServiceRequest(req);
+        navigateSrv.callService(rosReq, (res) => {
+          const ok = (res && (res.success === true || res.success === 1));
+          statusEl.innerHTML = (ok ? '<span class="ok">OK:</span> ' : '<span class="err">Ошибка:</span> ') + (res && res.message ? res.message : '');
+        }, (err) => {
+          statusEl.innerHTML = '<span class="err">Ошибка вызова /navigate:</span> ' + err;
+        });
+
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">Ошибка: '+ e +'</span>';
+      }
+    });
+  </script>
+</body>
+</html>

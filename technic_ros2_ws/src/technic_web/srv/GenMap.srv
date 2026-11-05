@@ -1,0 +1,7 @@
+# Generate an ArUco map file in technic_aruco/map (ROS 1 aruco_pose genmap.py):
+# <length> <x> <y> <dist_x> <dist_y> [<first>] [<x0>] [<y0>]
+# [--top-left | --bottom-left] [-o <filename>]
+string[] args
+---
+bool success
+string message

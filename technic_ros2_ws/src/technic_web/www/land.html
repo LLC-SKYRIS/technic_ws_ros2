@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Посадка — Technic</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+  <style>
+    :root{
+      --bg:#0c0c0e;
+      --panel:#1b1c1f;
+      --panel-2:#222327;
+      --text:#e7e7ea;
+      --muted:#a8abb3;
+      --accent:#2ea0ff;
+      --danger:#ef4444;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+      --radius:18px;
+      --gap:10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+      padding: clamp(10px, 2vw, 18px);
+      display: flex;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+    .card {
+      width: min(900px, 100%);
+      padding: clamp(16px, 2.5vw, 24px);
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .title { font-weight: 600; font-size: 16px; margin-bottom: 6px; }
+    .home-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .home-link:hover { text-decoration: underline; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); align-items: end; }
+    label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--panel-2);
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .btn {
+      min-height: 38px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 19px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      line-height: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .btn:hover { background:#3b3f46; }
+    .btn.primary { background: #3a2324; color:#ff6b6b; }
+    .row { display:flex; gap: var(--gap); align-items:center; margin-top: 10px; }
+    .right { text-align:right; }
+    .wrap { display:flex; flex-wrap:wrap; gap:6px; }
+    code.preview {
+      display:block;
+      padding:10px 12px;
+      background: var(--bg);
+      border-radius:12px;
+      margin-top:12px;
+      font-size:13px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ok { color:#4ade80; }
+    .err { color:#f87171; }
+    .seg .btn[aria-pressed="true"] { background: var(--accent); color:#fff; }
+    @media (max-width: 768px) {
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        height: 100dvh;
+        overflow: hidden;
+        align-items: flex-start;
+        padding:
+          calc(6px + env(safe-area-inset-top))
+          calc(6px + env(safe-area-inset-right))
+          calc(6px + env(safe-area-inset-bottom))
+          calc(6px + env(safe-area-inset-left));
+      }
+      .card {
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        overflow: hidden;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .page-head { margin-bottom: 0; flex: 0 0 auto; }
+      .title { font-size: 14px; margin-bottom: 2px; }
+      .home-link { font-size: 12px; }
+      .muted { font-size: 11px; }
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+      label { font-size: 11px; margin-bottom: 3px; }
+      input[type="number"], input[type="text"], select {
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        margin-top: 0;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      .btn { min-height: 34px; font-size: 12px; }
+      #navParams { margin-top: 0 !important; flex: 0 0 auto; }
+      code.preview {
+        margin-top: 0;
+        padding: 6px 8px;
+        font-size: 10px;
+        max-height: 3.2em;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      #status { margin-top: 0 !important; flex: 0 0 auto; }
+      .muted:last-child { display: none; }
+      .card > div[style*="height"] { display: none; }
+    }
+    @media (max-height: 520px) and (orientation: landscape) {
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        height: 100dvh;
+        overflow: hidden;
+        align-items: flex-start;
+        padding:
+          calc(4px + env(safe-area-inset-top))
+          calc(6px + env(safe-area-inset-right))
+          calc(4px + env(safe-area-inset-bottom))
+          calc(6px + env(safe-area-inset-left));
+      }
+      .card {
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        overflow: hidden;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .page-head { margin-bottom: 0; }
+      .title { font-size: 12px; margin-bottom: 2px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      label { font-size: 10px; margin-bottom: 2px; }
+      input[type="number"], input[type="text"], select { padding: 5px 6px; font-size: 11px; }
+      .row { flex-direction: row; align-items: center; margin-top: 0; gap: 6px; }
+      .btn { min-height: 30px; font-size: 11px; }
+      code.preview { max-height: 2.4em; overflow: hidden; font-size: 9px; margin-top: 0; padding: 4px 6px; flex: 0 0 auto; }
+      .muted:last-child { display: none; }
+      .card > div[style*="height"] { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="page-head">
+      <div>
+        <div class="title">Посадка (Technic)</div>
+        <div class="muted" id="ros-conn">ROS: подключение...</div>
+      </div>
+      <a href="index.html" class="home-link">← На главную</a>
+    </div>
+
+    <div style="height:8px"></div>
+
+    <!-- Переключатель метода посадки -->
+    <div class="row seg" role="radiogroup" aria-label="Метод посадки">
+      <button class="btn" id="mLand"    aria-pressed="true">/land (Trigger)</button>
+      <button class="btn" id="mNav0"    aria-pressed="false">/navigate (z=0)</button>
+    </div>
+
+    <!-- Параметры для варианта navigate -->
+    <div id="navParams" style="margin-top:10px; display:none">
+      <div class="grid">
+        <div>
+          <label for="frame">frame_id</label>
+          <select id="frame">
+            <option value="body">body</option>
+            <option value="map" selected>map</option>
+            <option value="aruco_map">aruco_map</option>
+            <option value="local_origin">local_origin</option>
+          </select>
+        </div>
+        <div>
+          <label for="speed">Скорость (м/с)</label>
+          <input id="speed" type="text" inputmode="decimal" placeholder="0.5" value="0.5" />
+        </div>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        Вариант <code>/navigate</code>: отправляет {x:0, y:0, z:0} в выбранной системе координат.
+      </div>
+    </div>
+
+    <div style="height:8px"></div>
+
+    <div class="row">
+      <div class="wrap">
+        <button id="run" class="btn primary">Посадка</button>
+      </div>
+    </div>
+
+    <code class="preview" id="preview"></code>
+    <div id="status" class="muted" style="margin-top:6px"></div>
+
+    <div class="muted" style="margin-top:8px">
+      Требуется, чтобы были запущены ноды Technic. Для прямой посадки используется сервис <code>/land</code> (тип <code>std_srvs/Trigger</code>). 
+      Альтернатива — посадка через <code>/navigate</code> с <code>z=0</code>.
+    </div>
+  </div>
+
+  <script>
+    // ROS connect
+    const rosUrl = 'ws://' + location.hostname + ':9090';
+    const ros = new ROSLIB.Ros({ url: rosUrl });
+    const connEl = document.getElementById('ros-conn');
+    const statusEl = document.getElementById('status');
+    ros.on('connection', () => connEl.textContent = 'ROS: connected (' + rosUrl + ')');
+    ros.on('error', (e) => connEl.textContent = 'ROS error: ' + e);
+    ros.on('close', () => connEl.textContent = 'ROS: closed');
+
+    // Services
+    const landSrv = new ROSLIB.Service({ ros, name: '/land', serviceType: 'std_srvs/srv/Trigger' });
+    const navigateSrv = new ROSLIB.Service({ ros, name: '/navigate', serviceType: 'technic_web/srv/Navigate' });
+
+    // Params for history/compat
+    const modeParam     = new ROSLIB.Param({ ros, name: '/land_ui/mode' });         // 'land' | 'navigate'
+    const landReqText   = new ROSLIB.Param({ ros, name: '/land_ui/req_str' });      // текст превью
+    const navReqJson    = new ROSLIB.Param({ ros, name: '/land_ui/nav_req_json' }); // JSON для navigate
+
+    const $ = (sel) => document.querySelector(sel);
+    const norm = (v) => String(v ?? '').trim().replace(',', '.');
+
+    let mode = 'land'; // 'land' | 'navigate'
+
+    // UI toggles
+    const mLand = document.getElementById('mLand');
+    const mNav0 = document.getElementById('mNav0');
+    const navParams = document.getElementById('navParams');
+
+    function setMode(m) {
+      mode = m;
+      mLand.setAttribute('aria-pressed', String(m === 'land'));
+      mNav0.setAttribute('aria-pressed', String(m === 'navigate'));
+      navParams.style.display = (m === 'navigate') ? '' : 'none';
+      renderPreview();
+    }
+    mLand.addEventListener('click', () => setMode('land'));
+    mNav0.addEventListener('click', () => setMode('navigate'));
+
+    // render preview command
+    function buildNavReq() {
+      const frame = $('#frame').value || 'map';
+      const speed = parseFloat(norm($('#speed').value));
+      return {
+        x: 0.0, y: 0.0, z: 0.0,
+        yaw: 0.0,
+        speed: isNaN(speed) ? 0.5 : speed,
+        frame_id: frame,
+        auto_arm: false,
+      };
+    }
+
+    function renderPreview() {
+      if (mode === 'land') {
+        $('#preview').textContent = 'rosservice call /land "{}"';
+      } else {
+        const r = buildNavReq();
+        const yaml = `{x: 0.0, y: 0.0, z: 0.0, yaw: 0.0, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: false}`;
+        $('#preview').textContent = `rosservice call /navigate "${yaml}"`;
+      }
+    }
+
+    // inputs for navigate
+    ['frame','speed'].forEach(id => {
+      const el = $('#'+id);
+      el.addEventListener('input', renderPreview);
+      el.addEventListener('change', renderPreview);
+    });
+
+    renderPreview();
+
+    async function saveReq() {
+      if (mode === 'land') {
+        await Promise.all([
+          new Promise((res, rej)=> modeParam.set('land', res, rej)),
+          new Promise((res, rej)=> landReqText.set('{}', res, rej)),
+        ]);
+      } else {
+        const req = buildNavReq();
+        const yaml = `{x: 0.0, y: 0.0, z: 0.0, yaw: 0.0, speed: ${req.speed}, frame_id: '${req.frame_id}', auto_arm: false}`;
+        await Promise.all([
+          new Promise((res, rej)=> modeParam.set('navigate', res, rej)),
+          new Promise((res, rej)=> navReqJson.set(JSON.stringify(req), res, rej)),
+          new Promise((res, rej)=> landReqText.set(yaml, res, rej)),
+        ]);
+      }
+    }
+
+    // RUN (land)
+    document.getElementById('run').addEventListener('click', async () => {
+      statusEl.textContent = 'Отправка команды посадки…';
+      try {
+        await saveReq(); // чтобы оставалось в параметрах
+
+        if (mode === 'land') {
+          const req = new ROSLIB.ServiceRequest({});
+          landSrv.callService(req, (res) => {
+            const ok = res && (res.success === true || res.success === 1);
+            statusEl.innerHTML = (ok ? '<span class="ok">OK:</span> ' : '<span class="err">Ошибка:</span> ') + (res && res.message ? res.message : '');
+          }, (err) => {
+            statusEl.innerHTML = '<span class="err">Ошибка вызова /land:</span> ' + err;
+          });
+        } else {
+          const r = buildNavReq();
+          const req = new ROSLIB.ServiceRequest(r);
+          navigateSrv.callService(req, (res) => {
+            const ok = res && (res.success === true || res.success === 1);
+            statusEl.innerHTML = (ok ? '<span class="ok">OK (navigate z=0):</span> ' : '<span class="err">Ошибка:</span> ') + (res && res.message ? res.message : '');
+          }, (err) => {
+            statusEl.innerHTML = '<span class="err">Ошибка вызова /navigate:</span> ' + err;
+          });
+        }
+
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">Ошибка: '+ e +'</span>';
+      }
+    });
+  </script>
+</body>
+</html>

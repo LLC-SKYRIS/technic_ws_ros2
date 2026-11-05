@@ -1,0 +1,12 @@
+# ROS 1 compatible /navigate for the web pages; forwarded to the
+# flight/navigate_to action. Returns when the goal is accepted, as in ROS 1.
+float32 x
+float32 y
+float32 z
+float32 yaw
+float32 speed
+string frame_id
+bool auto_arm
+---
+bool success
+string message

@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Convert the camera images of a ROS 2 bag to an .mp4 video next to it.
+
+Usage: ros2 run technic_web bag_to_mp4 <bag directory or .mcap/.db3 file> [image_topic]
+
+Without image_topic the first sensor_msgs/msg/Image (or CompressedImage) topic
+is used. The video is written next to the bag directory as <bag>.mp4. ffmpeg
+with libx264 is preferred (plays in browsers); without it OpenCV writes MPEG-4.
+
+Progress is printed as "PROGRESS <done>/<total>", the last line is
+"OK <output>" or "ERROR <message>" (console.html parses these lines).
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+
+import cv2
+import numpy as np
+
+IMAGE_TYPES = ('sensor_msgs/msg/Image', 'sensor_msgs/msg/CompressedImage')
+
+
+def fail(message):
+    print('ERROR ' + message, flush=True)
+    sys.exit(1)
+
+
+def image_to_bgr(msg, msg_type):
+    if msg_type == 'sensor_msgs/msg/CompressedImage':
+        frame = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            raise ValueError('cannot decode compressed image (' + msg.format + ')')
+        return frame
+
+    enc = msg.encoding.lower()
+    data = np.frombuffer(msg.data, np.uint8)
+    if enc in ('rgb8', 'bgr8'):
+        frame = data.reshape(msg.height, msg.step)[:, :msg.width * 3].reshape(msg.height, msg.width, 3)
+        return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) if enc == 'rgb8' else frame
+    if enc in ('rgba8', 'bgra8'):
+        frame = data.reshape(msg.height, msg.step)[:, :msg.width * 4].reshape(msg.height, msg.width, 4)
+        return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR if enc == 'rgba8' else cv2.COLOR_BGRA2BGR)
+    if enc in ('mono8', '8uc1'):
+        frame = data.reshape(msg.height, msg.step)[:, :msg.width]
+        return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    if enc in ('yuv422', 'uyvy'):
+        frame = data.reshape(msg.height, msg.step)[:, :msg.width * 2].reshape(msg.height, msg.width, 2)
+        return cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_UYVY)
+    if enc in ('yuv422_yuy2', 'yuyv'):
+        frame = data.reshape(msg.height, msg.step)[:, :msg.width * 2].reshape(msg.height, msg.width, 2)
+        return cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUYV)
+    # other encodings (16-bit, bayer, ...): fall back to cv_bridge
+    from cv_bridge import CvBridge
+    return CvBridge().imgmsg_to_cv2(msg, 'bgr8')
+
+
+class FfmpegWriter:
+    def __init__(self, path, width, height, fps):
+        self.proc = subprocess.Popen(
+            ['ffmpeg', '-loglevel', 'error', '-y',
+             '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', '%dx%d' % (width, height), '-r', '%.3f' % fps,
+             '-i', '-', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
+             '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-movflags', '+faststart', path],
+            stdin=subprocess.PIPE)
+
+    def write(self, frame):
+        self.proc.stdin.write(frame.tobytes())
+
+    def release(self):
+        self.proc.stdin.close()
+        if self.proc.wait() != 0:
+            raise RuntimeError('ffmpeg failed with code %d' % self.proc.returncode)
+
+
+class OpenCvWriter:
+    def __init__(self, path, width, height, fps):
+        self.writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+        if not self.writer.isOpened():
+            raise RuntimeError('OpenCV cannot open the mp4 writer')
+
+    def write(self, frame):
+        self.writer.write(frame)
+
+    def release(self):
+        self.writer.release()
+
+
+def bag_directory(path):
+    path = os.path.abspath(os.path.expanduser(path.strip())).rstrip('/')
+    if os.path.isfile(path) and path.endswith(('.mcap', '.db3')):
+        path = os.path.dirname(path)
+    if not os.path.isdir(path):
+        fail('bag not found: ' + path)
+    if not os.path.isfile(os.path.join(path, 'metadata.yaml')):
+        fail('%s has no metadata.yaml: the recording is still running or was not closed; '
+             'stop it or run "ros2 bag reindex %s"' % (path, path))
+    return path
+
+
+def main():
+    if len(sys.argv) < 2:
+        fail('usage: bag_to_mp4 <bag directory> [image_topic]')
+
+    bag_path = bag_directory(sys.argv[1])
+    out_path = bag_path + '.mp4'
+    if not os.access(os.path.dirname(bag_path), os.W_OK):
+        fail('no write permission for ' + os.path.dirname(bag_path))
+
+    import rosbag2_py
+    from rclpy.serialization import deserialize_message
+    from rosidl_runtime_py.utilities import get_message
+
+    try:
+        info = rosbag2_py.Info().read_metadata(bag_path, '')
+        reader = rosbag2_py.SequentialReader()
+        reader.open(rosbag2_py.StorageOptions(uri=bag_path, storage_id=info.storage_identifier),
+                    rosbag2_py.ConverterOptions('', ''))
+    except Exception as e:  # rosbag2 raises RuntimeError and others for broken bags
+        fail('cannot open bag: %s' % e)
+
+    topics = {t.topic_metadata.name: t for t in info.topics_with_message_count}
+    image_topics = sorted(n for n, t in topics.items() if t.topic_metadata.type in IMAGE_TYPES)
+    if len(sys.argv) > 2:
+        topic = sys.argv[2]
+        if topic not in image_topics:
+            fail('no image topic %s in the bag; image topics: %s' % (topic, ', '.join(image_topics) or 'none'))
+    elif image_topics:
+        topic = image_topics[0]
+    else:
+        fail('no image topics in the bag')
+
+    total = topics[topic].message_count
+    if total == 0:
+        fail('topic %s has no messages' % topic)
+    msg_type = topics[topic].topic_metadata.type
+    msg_class = get_message(msg_type)
+    # frame rate from the recording itself, so the video plays in real time
+    duration = info.duration  # datetime.timedelta or rclpy-style Duration, by distro
+    span = duration.total_seconds() if hasattr(duration, 'total_seconds') else duration.nanoseconds * 1e-9
+    fps = total / span if span > 0 else 30.0
+    fps = min(max(fps, 1.0), 60.0)
+
+    use_ffmpeg = shutil.which('ffmpeg') is not None
+    print('INFO %s: %d frames, %.1f fps, encoder %s' % (
+        topic, total, fps, 'ffmpeg/H.264' if use_ffmpeg else 'OpenCV/MPEG-4'), flush=True)
+
+    reader.set_filter(rosbag2_py.StorageFilter(topics=[topic]))
+    writer = None
+    size = None
+    done = 0
+    try:
+        while reader.has_next():
+            _, data, _ = reader.read_next()
+            frame = image_to_bgr(deserialize_message(data, msg_class), msg_type)
+            if writer is None:
+                size = (frame.shape[1], frame.shape[0])
+                writer = (FfmpegWriter if use_ffmpeg else OpenCvWriter)(out_path, size[0], size[1], fps)
+            elif (frame.shape[1], frame.shape[0]) != size:
+                frame = cv2.resize(frame, size)
+            writer.write(frame)
+            done += 1
+            if done % 30 == 0 or done == total:
+                print('PROGRESS %d/%d' % (done, total), flush=True)
+    except Exception as e:
+        if writer is not None:
+            try:
+                writer.release()
+            except Exception:
+                pass
+        fail('conversion failed at frame %d: %s' % (done + 1, e))
+    if writer is None:
+        fail('topic %s has no messages' % topic)
+    writer.release()
+
+    print('OK ' + out_path, flush=True)
+
+
+if __name__ == '__main__':
+    main()

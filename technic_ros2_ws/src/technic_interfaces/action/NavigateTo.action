@@ -1,0 +1,28 @@
+# Target position in `frame_id`, metres (ROS REP-103: ENU/FLU).
+float64 x
+float64 y
+float64 z
+# Target yaw in `frame_id`, radians. NaN keeps the current yaw setpoint;
+# +Inf turns the vehicle towards the direction of flight.
+float64 yaw
+# Maximum translational speed in metres per second.
+float64 speed
+# Frame of the target (as in ROS 1 navigate):
+#   "" or "map"       - local frame;
+#   "body"            - relative to the vehicle (position and yaw), resolved at request time;
+#   "navigate_target" - relative to the previous target, resolved at request time;
+#   any TF frame, e.g. "aruco_map" - tracked continuously, also while hovering at the target.
+string frame_id
+# Position tolerance in metres.
+float64 tolerance
+builtin_interfaces/Duration timeout
+# Switch PX4 to Offboard and arm before flying. Required when the vehicle is not
+# armed in Offboard, e.g. to take off with {z: 1.5, frame_id: body, auto_arm: true}.
+bool auto_arm
+---
+bool success
+string message
+---
+float64 remaining_distance
+float64 elapsed_seconds
+uint8 flight_state

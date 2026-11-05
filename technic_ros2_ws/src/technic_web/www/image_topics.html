@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<title>Image Topics</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+	<style>
+		:root{
+			--bg:#0c0c0e;
+			--panel:#1b1c1f;
+			--panel-2:#222327;
+			--text:#e7e7ea;
+			--muted:#a8abb3;
+			--accent:#2ea0ff;
+			--shadow:0 6px 18px rgba(0,0,0,.35);
+			--radius:18px;
+			--space: clamp(8px, 1.2vw, 16px);
+		}
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		html, body { height: 100%; }
+		body {
+			background: var(--bg);
+			color: var(--text);
+			font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+			overflow: hidden;
+			touch-action: manipulation;
+		}
+		/* Страница — ровно один экран. Окна потоков квадратные; число колонок и размер
+		   квадрата подбирает скрипт (layoutGrid): все окна видны без прокрутки и
+		   получаются как можно крупнее, лишние переносятся на следующую строку. */
+		.wrap {
+			height: 100vh;
+			height: 100dvh;
+			width: min(1600px, 100%);
+			margin: 0 auto;
+			display: flex;
+			flex-direction: column;
+			gap: var(--space);
+			padding:
+				calc(var(--space) + env(safe-area-inset-top))
+				calc(clamp(8px, 2vw, 28px) + env(safe-area-inset-right))
+				calc(var(--space) + env(safe-area-inset-bottom))
+				calc(clamp(8px, 2vw, 28px) + env(safe-area-inset-left));
+		}
+		header {
+			flex: 0 0 auto;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 12px;
+		}
+		h1 {
+			font-size: clamp(15px, 1.6vw, 22px);
+			font-weight: 500;
+			color: var(--muted);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.header-link {
+			color: var(--accent);
+			text-decoration: none;
+			font-weight: 500;
+			white-space: nowrap;
+		}
+		.header-link:hover { text-decoration: underline; }
+		.grid {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: grid;
+			gap: var(--space);
+			grid-template-columns: repeat(3, 200px);
+			grid-auto-rows: max-content;
+			justify-content: center;
+			align-content: center;
+		}
+		.card {
+			min-width: 0;
+			background: var(--panel);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			padding: clamp(6px, 1vw, 12px);
+			display: flex;
+			flex-direction: column;
+			gap: clamp(4px, .6vw, 8px);
+		}
+		.card .title {
+			flex: 0 0 auto;
+			font-weight: 600;
+			font-size: 13px;
+			color: var(--muted);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.card .frame {
+			flex: 0 0 auto;
+			width: 100%;
+			aspect-ratio: 1 / 1;
+			position: relative;
+			background: #000;
+			border-radius: 10px;
+			overflow: hidden;
+		}
+		.stream-link { position: absolute; inset: 0; display: block; cursor: pointer; }
+		.stream-link:focus-visible { outline: none; box-shadow: inset 0 0 0 3px rgba(46,160,255,.6); }
+		.card img {
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+			display: block;
+			color: transparent; /* пока кадра нет, не показываем подпись alt поверх окна */
+		}
+		.row {
+			flex: 0 0 auto;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			min-width: 0;
+		}
+		/* Подписи в одну строку: высота карточки не меняется при сужении,
+		   иначе подобранные размеры перестают помещаться в экран. */
+		.row .link, .row .label {
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			min-width: 0;
+		}
+		.label { font-size: 12px; color: var(--muted); }
+		.label.live { color: var(--accent); }
+		.link {
+			text-decoration: none;
+			color: var(--accent);
+			font-size: 13px;
+			font-weight: 500;
+		}
+		.link:hover { text-decoration: underline; }
+		.source {
+			flex: 0 0 auto;
+			color: var(--muted);
+			font-size: 12px;
+		}
+		.source code {
+			color: var(--text);
+			font-size: inherit;
+		}
+
+		body.viewer-mode .source { display: none; }
+		.viewer {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: var(--panel);
+			border-radius: var(--radius);
+			box-shadow: var(--shadow);
+			padding: 8px;
+			overflow: hidden;
+		}
+		.viewer img {
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+			background: #000;
+			border-radius: 12px;
+		}
+
+		/* Телефоны: компактные подписи, источник скрыт */
+		@media (max-width: 768px), (max-height: 520px) and (orientation: landscape) {
+			:root { --space: 6px; --radius: 12px; }
+			body { font-size: 13px; }
+			h1 { font-size: 14px; }
+			.header-link { font-size: 12px; }
+			.card { padding: 5px 6px; gap: 3px; }
+			.card .title { font-size: 11px; }
+			.label, .link { font-size: 11px; }
+			.source { display: none; }
+			.viewer { padding: 4px; }
+		}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<header>
+			<div>
+				<h1 id="page-title">Image Topics</h1>
+			</div>
+			<a href="index.html" class="header-link" id="back-link">← На главную</a>
+		</header>
+
+		<div id="grid" class="grid" aria-live="polite"></div>
+
+		<div class="source">Источник потоков: <code id="src"></code></div>
+	</div>
+
+	<script>
+		// На мобильных браузерах дополнительно блокируем pinch/double-tap zoom.
+		document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+		document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+		let lastTouchEnd = 0;
+		document.addEventListener('touchend', (event) => {
+			const now = Date.now();
+			if (now - lastTouchEnd <= 300) {
+				event.preventDefault();
+			}
+			lastTouchEnd = now;
+		}, { passive: false });
+
+		(function(){
+			const base = location.protocol + '//' + location.hostname + ':8080';
+			document.getElementById('src').textContent = base;
+
+			const groups = [
+				// ROS 2 (technic_ros2_ws): camera, technic_aruco and technic_optical_flow debug images
+				{ ns: '/main_camera/', topics: ['image_raw']},
+				{ ns: '/aruco_detect/', topics: ['debug'] },
+				{ ns: '/aruco_map/', topics: ['image','debug'] },
+				{ ns: '/optical_flow/', topics: ['debug'] },
+			];
+
+			const pageQs = new URLSearchParams(location.search);
+			const grid = document.getElementById('grid');
+			const title = document.getElementById('page-title');
+			const backLink = document.getElementById('back-link');
+
+			// Миниатюры — одиночные кадры (/snapshot), поток MJPEG идёт только под курсором:
+			// дрону не нужно непрерывно кодировать все топики сразу.
+			// Качество/ширину можно задать через ?quality= и ?width=,
+			// период обновления снимков — ?snapshot_interval= (секунды, 0 — не обновлять).
+			const quality = pageQs.get('quality') || '40';
+			const width = pageQs.get('width') || '240';
+			const snapshotInterval = parseFloat(pageQs.get('snapshot_interval') || '5') * 1000;
+			const viewTopic = pageQs.get('view_topic');
+
+			// web_video_server не раскодирует %2F в имени топика, поэтому слэши оставляем как есть
+			function wvsQuery(obj){
+				return new URLSearchParams(obj).toString().replace(/%2F/gi, '/');
+			}
+			function srcTopic(fullTopic){
+				const map = { '/main_camera/image_raw': '/main_camera/image_raw' };
+				return map[fullTopic] || fullTopic;
+			}
+			function streamUrl(fullTopic){
+				return base + '/stream?' + wvsQuery({ topic: srcTopic(fullTopic), type: 'mjpeg', quality: quality, width: width });
+			}
+			function snapshotUrl(fullTopic){
+				// _ — защита от кэша браузера, web_video_server лишние параметры игнорирует
+				return base + '/snapshot?' + wvsQuery({ topic: srcTopic(fullTopic), quality: quality, width: width, _: Date.now() });
+			}
+			function viewerUrl(fullTopic){
+				const qs = new URLSearchParams({ view_topic: fullTopic, quality: quality, width: width });
+				return location.pathname + '?' + qs.toString().replace(/%2F/gi, '/');
+			}
+			function viewerStreamUrl(fullTopic){
+				const viewerWidth = pageQs.get('viewer_width') || '1280';
+				return base + '/stream?' + wvsQuery({ topic: srcTopic(fullTopic), type: 'mjpeg', quality: quality, width: viewerWidth });
+			}
+			function showViewer(fullTopic){
+				document.body.classList.add('viewer-mode');
+				title.textContent = fullTopic;
+				backLink.href = location.pathname;
+				backLink.textContent = '← Назад';
+				grid.className = 'viewer';
+				grid.innerHTML = '';
+				const img = document.createElement('img');
+				img.alt = fullTopic;
+				img.src = viewerStreamUrl(fullTopic);
+				grid.appendChild(img);
+			}
+
+			function addCard(fullTopic){
+				const card = document.createElement('div');
+				card.className = 'card';
+
+				const h = document.createElement('div');
+				h.className = 'title';
+				h.textContent = fullTopic;
+				card.appendChild(h);
+
+				const frame = document.createElement('div');
+				frame.className = 'frame';
+				const imgLink = document.createElement('a');
+				imgLink.href = viewerUrl(fullTopic);
+				imgLink.className = 'stream-link';
+				imgLink.title = 'Открыть поток';
+				const img = document.createElement('img');
+				img.alt = fullTopic;
+				imgLink.appendChild(img);
+				frame.appendChild(imgLink);
+				card.appendChild(frame);
+
+				const row = document.createElement('div');
+				row.className = 'row';
+				const a = document.createElement('a');
+				a.href = viewerUrl(fullTopic);
+				a.className = 'link';
+				a.textContent = 'Открыть поток';
+				row.appendChild(a);
+
+				const span = document.createElement('span');
+				span.className = 'label';
+				row.appendChild(span);
+
+				card.appendChild(row);
+				grid.appendChild(card);
+
+				// Снимок загружается отдельным Image и подставляется только после загрузки:
+				// пока топик молчит, запросы не копятся (новый — только после ответа на прежний).
+				let live = false;
+				let snapshot = '';
+				let pending = false;
+				function loadSnapshot(){
+					if (live || pending || document.hidden) return;
+					pending = true;
+					const loader = new Image();
+					const url = snapshotUrl(fullTopic);
+					loader.onload = () => {
+						pending = false;
+						snapshot = url;
+						if (!live) img.src = url;
+					};
+					loader.onerror = () => { pending = false; };
+					loader.src = url;
+				}
+				function setLabel(){
+					span.textContent = live ? 'Поток' : 'Снимок';
+					span.classList.toggle('live', live);
+				}
+				function startStream(){
+					if (live) return;
+					live = true;
+					setLabel();
+					img.src = streamUrl(fullTopic);
+				}
+				function stopStream(){
+					if (!live) return;
+					live = false;
+					setLabel();
+					// Смена src закрывает MJPEG-соединение; показываем последний снимок и берём свежий
+					if (snapshot) img.src = snapshot; else img.removeAttribute('src');
+					loadSnapshot();
+				}
+				imgLink.addEventListener('mouseenter', startStream);
+				imgLink.addEventListener('mouseleave', stopStream);
+				imgLink.addEventListener('focus', startStream);
+				imgLink.addEventListener('blur', stopStream);
+
+				setLabel();
+				loadSnapshot();
+				if (snapshotInterval > 0) setInterval(loadSnapshot, snapshotInterval);
+				document.addEventListener('visibilitychange', () => {
+					if (document.hidden) stopStream(); else loadSnapshot();
+				});
+			}
+
+			// Подбор числа колонок: перебираем варианты и берём тот, где квадратное окно
+			// потока получается крупнее всего, а все карточки помещаются в экран.
+			function layoutGrid(){
+				// Второй проход — если после смены ширины изменилась высота подписей
+				for (let pass = 0; pass < 2; pass++) {
+					if (!layoutPass()) break;
+				}
+			}
+			function layoutPass(){
+				const cards = grid.children;
+				const n = cards.length;
+				if (!n || grid.classList.contains('viewer')) return false;
+				const first = cards[0];
+				const frame = first.querySelector('.frame');
+				const chromeW = first.offsetWidth - frame.offsetWidth;   // поля карточки
+				const chromeH = first.offsetHeight - frame.offsetHeight; // подпись, ссылка, поля
+				const cs = getComputedStyle(grid);
+				const gapX = parseFloat(cs.columnGap) || 0;
+				const gapY = parseFloat(cs.rowGap) || 0;
+				const W = grid.clientWidth, H = grid.clientHeight;
+				let best = 1, bestSide = 0;
+				for (let cols = 1; cols <= n; cols++) {
+					const rows = Math.ceil(n / cols);
+					const w = (W - gapX * (cols - 1)) / cols - chromeW;
+					const h = (H - gapY * (rows - 1)) / rows - chromeH;
+					const side = Math.floor(Math.min(w, h));
+					if (side > bestSide) { bestSide = side; best = cols; }
+				}
+				if (bestSide <= 0) return false;
+				grid.style.gridTemplateColumns = 'repeat(' + best + ', ' + (bestSide + chromeW) + 'px)';
+				// true — раскладка поменяла высоту подписей, нужен ещё один проход
+				return first.offsetHeight - first.querySelector('.frame').offsetHeight !== chromeH;
+			}
+			window.addEventListener('resize', layoutGrid);
+			window.addEventListener('orientationchange', layoutGrid);
+
+			if (viewTopic) {
+				showViewer(viewTopic);
+			} else {
+				groups.forEach(g => g.topics.forEach(t => addCard(g.ns + t)));
+				layoutGrid();
+			}
+		})();
+	</script>
+</body>
+</html>

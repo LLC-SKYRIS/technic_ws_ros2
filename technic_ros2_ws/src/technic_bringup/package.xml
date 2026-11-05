@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>technic_bringup</name>
+  <version>0.1.0</version>
+  <description>Launch and configuration for the Technic ROS 2 flight stack.</description>
+
+  <maintainer email="support@skyris.pro">Skyris</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>mavros</exec_depend>
+  <exec_depend>mavros_extras</exec_depend>
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+  <exec_depend>technic_aruco</exec_depend>
+  <exec_depend>technic_flight</exec_depend>
+  <exec_depend>technic_optical_flow</exec_depend>
+  <exec_depend>technic_web</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>v4l2_camera</exec_depend>
+  <exec_depend>vl53l1x</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

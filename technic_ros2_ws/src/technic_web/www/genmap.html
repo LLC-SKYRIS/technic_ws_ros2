@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>genmap.py — быстрый запуск</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+  <style>
+    :root{
+      --bg:#0c0c0e;
+      --panel:#1b1c1f;
+      --panel-2:#222327;
+      --text:#e7e7ea;
+      --muted:#a8abb3;
+      --accent:#2ea0ff;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+      --radius:18px;
+      --gap:10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+      padding: clamp(10px, 2vw, 18px);
+      display: flex;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+    .card {
+      width: min(900px, 100%);
+      padding: clamp(16px, 2.5vw, 24px);
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .title { font-weight: 600; font-size: 16px; margin-bottom: 6px; }
+    .home-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .home-link:hover { text-decoration: underline; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); align-items: end; }
+    label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+    input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--panel-2);
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    .btn {
+      min-height: 38px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 19px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      line-height: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .btn:hover { background:#3b3f46; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .row { display:flex; gap: var(--gap); align-items:center; margin-top: 10px; }
+    .right { text-align:right; display:flex; gap:8px; }
+    .wrap { display:flex; flex-wrap:wrap; gap:6px; }
+    code.preview {
+      display:block;
+      padding:10px 12px;
+      background: var(--bg);
+      border-radius:12px;
+      margin-top:12px;
+      font-size:13px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ok { color:#4ade80; }
+    .err { color:#f87171; }
+    .seg .btn[aria-pressed="true"] { background: var(--accent); color:#fff; }
+    @media (max-width: 768px) {
+      body { padding: 8px; }
+      .card { padding: 12px; }
+      .page-head { margin-bottom: 6px; }
+      .title { font-size: 14px; margin-bottom: 2px; }
+      .muted { font-size: 12px; }
+      .home-link { font-size: 12px; }
+      .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      label { font-size: 11px; margin-bottom: 3px; }
+      input[type="number"], input[type="text"] { padding: 7px 9px; font-size: 14px; }
+      .row { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .row > div[style*="flex:1"] { display: none; }
+      .wrap { gap: 5px; }
+      .right { flex: 1 1 100%; }
+      .right .btn { flex: 1 1 0; }
+      .seg .btn { flex: 1 1 0; }
+      .btn { min-height: 34px; padding: 0 10px; font-size: 12px; }
+      code.preview { margin-top: 8px; padding: 8px 10px; font-size: 11.5px; }
+    }
+    @media (max-height: 520px) and (orientation: landscape) {
+      body { padding: 6px 8px; }
+      .card { padding: 8px 10px; }
+      .page-head { margin-bottom: 4px; }
+      .title { font-size: 13px; margin-bottom: 0; }
+      .muted { font-size: 11px; }
+      .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+      label { font-size: 10px; margin-bottom: 2px; }
+      input[type="number"], input[type="text"] { padding: 4px 6px; font-size: 12px; }
+      .row { flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+      .wrap { gap: 4px; }
+      .btn { min-height: 26px; padding: 0 8px; font-size: 11px; border-radius: 13px; }
+      code.preview { margin-top: 6px; padding: 4px 8px; font-size: 10px; }
+    }
+    @media (max-width: 768px), (max-height: 520px) and (orientation: landscape) { .spacer { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="page-head">
+      <div>
+        <div class="title">Генерация карты (genmap → technic_aruco/map)</div>
+        <div class="muted" id="ros-conn">ROS: подключение...</div>
+      </div>
+      <a href="index.html" class="home-link">← На главную</a>
+    </div>
+
+    <div class="spacer" style="height:8px"></div>
+
+    <div class="grid">
+      <div>
+        <label for="length">length (м)</label>
+        <input id="length" type="text" inputmode="decimal" placeholder="0.1" value="0.1" />
+      </div>
+      <div>
+        <label for="x">x (шт.)</label>
+        <input id="x" type="number" step="1" min="1" placeholder="8" value="8" />
+      </div>
+      <div>
+        <label for="y">y (шт.)</label>
+        <input id="y" type="number" step="1" min="1" placeholder="6" value="6" />
+      </div>
+      <div>
+        <label for="dist_x">dist_x (м)</label>
+        <input id="dist_x" type="text" inputmode="decimal" placeholder="0.2" value="0.2" />
+      </div>
+      <div>
+        <label for="dist_y">dist_y (м)</label>
+        <input id="dist_y" type="text" inputmode="decimal" placeholder="0.2" value="0.2" />
+      </div>
+      <div>
+        <label for="first">first (ID)</label>
+        <input id="first" type="number" step="1" min="0" placeholder="0" value="0" />
+      </div>
+    </div>
+
+    <div class="spacer" style="height:8px"></div>
+
+    <div class="row">
+      <div class="wrap" aria-label="быстрые значения">
+        <button class="btn" data-set="#length:0.09">length 0.09</button>
+        <button class="btn" data-set="#length:0.12">length 0.12</button>
+        <button class="btn" data-set="#x:8">x 8</button>
+        <button class="btn" data-set="#y:6">y 6</button>
+        <button class="btn" data-set="#dist_x:0.2">dx 0.2</button>
+        <button class="btn" data-set="#dist_y:0.2">dy 0.2</button>
+        <button class="btn" data-set="#first:0">first 0</button>
+      </div>
+      <div style="flex:1"></div>
+      <div class="right">
+        <button id="save" class="btn">Сохранить</button>
+        <button id="run" class="btn primary">Запустить</button>
+      </div>
+    </div>
+
+    <!-- Переключатель ориентации (необязательно) -->
+    <div class="row seg" role="radiogroup" aria-label="Ориентация">
+      <button class="btn" id="oriNoneBtn"   aria-pressed="true">нет</button>
+      <button class="btn" id="oriTopBtn"    aria-pressed="false">--top-left</button>
+      <button class="btn" id="oriBottomBtn" aria-pressed="false">--bottom-left</button>
+    </div>
+
+    <code class="preview" id="preview"></code>
+    <div id="status" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <script>
+    // ROS setup
+    const rosUrl = 'ws://' + location.hostname + ':9090';
+    const ros = new ROSLIB.Ros({ url: rosUrl });
+    const connEl = document.getElementById('ros-conn');
+    const statusEl = document.getElementById('status');
+
+    ros.on('connection', () => connEl.textContent = 'ROS: connected (' + rosUrl + ')');
+    ros.on('error', (e) => connEl.textContent = 'ROS error: ' + e);
+    ros.on('close', () => connEl.textContent = 'ROS: closed');
+
+    // Backend contract: web_api /genmap takes the genmap.py arguments; the last
+    // arguments are also remembered in this browser (ROSLIB.Param -> localStorage).
+    const genmapSrv = new ROSLIB.Service({ ros, name: '/genmap', serviceType: 'technic_web/srv/GenMap' });
+    const cmdParam  = new ROSLIB.Param({ ros, name: '/genmap_runner/cmd' });
+    // Совместимость со старыми раннерами (строка/YAML):
+    const cmdParamStr  = new ROSLIB.Param({ ros, name: '/genmap_runner/cmd_str' });
+    const cmdParamYaml = new ROSLIB.Param({ ros, name: '/genmap_runner/cmd_yaml' });
+    const cmdParamUI = new ROSLIB.Param({ ros, name: '/genmap_runner/ui_args'});
+
+    // Inputs
+    const ids = ['length','x','y','dist_x','dist_y','first'];
+    let orientation = ''; // '', '--top-left' или '--bottom-left'
+    const $ = (sel) => document.querySelector(sel);
+
+    // Нормализация десятичной запятой -> точка и трим пробелов
+    const norm = (v) => String(v ?? '').trim().replace(',', '.');
+
+    // Собираем ТОЛЬКО аргументы genmap.py
+    function argsOnlyFromUI() {
+      const vals = Object.fromEntries(ids.map(id => [id, $('#'+id).value]));
+      const argv = [
+        norm(vals.length), String(parseInt(vals.x || '', 10)),
+        String(parseInt(vals.y || '', 10)),
+        norm(vals.dist_x), norm(vals.dist_y),
+        String(parseInt(vals.first || '', 10))
+      ];
+      if (orientation) argv.push(orientation);
+      argv.push('-o','test_map.txt');
+      return argv;
+    }
+
+    function validate(argv){
+      // ожидаем минимум 6 позиционных, плюс опциональный флаг, потом -o файл
+      const pos = argv.slice(0,6);
+      if (pos.some(s => !s || s === 'NaN')) {
+        throw new Error('Заполните корректно все 6 позиционных параметров.');
+      }
+      // числа: length, dist_x, dist_y должны быть валидными float
+      const floatsOk = [argv[0], argv[3], argv[4]].every(s => !isNaN(parseFloat(s)));
+      const intsOk = [argv[1], argv[2], argv[5]].every(s => /^\d+$/.test(s));
+      if (!floatsOk || !intsOk) {
+        throw new Error('Проверьте числа: length/dist_x/dist_y — дробные; x/y/first — целые.');
+      }
+    }
+
+    function renderPreview() {
+      const args = argsOnlyFromUI();
+      const full = ['genmap', ...args];
+      $('#preview').textContent = full.join(' ');
+    }
+
+    ids.forEach(id => $('#'+id).addEventListener('input', renderPreview));
+
+    // Переключатели ориентации
+    const oriNoneBtn   = document.getElementById('oriNoneBtn');
+    const oriTopBtn    = document.getElementById('oriTopBtn');
+    const oriBottomBtn = document.getElementById('oriBottomBtn');
+
+    function setOri(flag){
+      orientation = flag; // '' | '--top-left' | '--bottom-left'
+      oriNoneBtn.setAttribute('aria-pressed', String(flag===''));
+      oriTopBtn.setAttribute('aria-pressed', String(flag==='--top-left'));
+      oriBottomBtn.setAttribute('aria-pressed', String(flag==='--bottom-left'));
+      renderPreview();
+    }
+    oriNoneBtn.addEventListener('click',   ()=> setOri(''));
+    oriTopBtn.addEventListener('click',    ()=> setOri('--top-left'));
+    oriBottomBtn.addEventListener('click', ()=> setOri('--bottom-left'));
+
+    renderPreview();
+
+    // Quick-set buttons
+    document.querySelectorAll('[data-set]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [sel, val] = btn.dataset.set.split(':');
+        const el = $(sel);
+        if (el) { el.value = val; renderPreview(); }
+      });
+    });
+
+    function saveCmd(argv) {
+      // Пишем три параметра: массив, строку и YAML-строку — для совместимости
+      return new Promise((resolve, reject) => {
+        const tasks = [];
+        tasks.push(new Promise((res, rej)=> cmdParam.set(argv, res, rej)));
+        tasks.push(new Promise((res, rej)=> cmdParamStr.set(argv.join(' '), res, rej)));
+        tasks.push(new Promise((res, rej)=> cmdParamYaml.set(JSON.stringify(argv), res, rej)));
+        tasks.push(new Promise((res, rej)=> cmdParamUI.set(argv, res, rej)));
+        Promise.all(tasks).then(()=>resolve(argv)).catch(reject);
+      });
+    }
+
+    $('#save').addEventListener('click', async () => {
+      statusEl.textContent = 'Сохранение команды…';
+      try {
+        const argv = argsOnlyFromUI();
+        validate(argv);
+        await saveCmd(argv);
+        statusEl.innerHTML = '<span class="ok">Сохранено (аргументы genmap.py).</span>';
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">Ошибка: '+ e +'</span>';
+      }
+    });
+
+    $('#run').addEventListener('click', async () => {
+      statusEl.textContent = 'Сохранение и запуск…';
+      try {
+        const argv = argsOnlyFromUI();
+        validate(argv);
+        await saveCmd(argv);
+        genmapSrv.callService(new ROSLIB.ServiceRequest({ args: argv }), (res) => {
+          statusEl.innerHTML = (res.success ? '<span class="ok">OK:</span> ' : '<span class="err">Ошибка:</span> ') + (res.message || '');
+        }, (err) => {
+          statusEl.innerHTML = '<span class="err">Ошибка вызова /genmap:</span> ' + err;
+        });
+      } catch (e) {
+        statusEl.innerHTML = '<span class="err">Ошибка: '+ e +'</span>';
+      }
+    });
+  </script>
+</body>
+</html>

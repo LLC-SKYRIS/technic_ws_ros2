@@ -1,0 +1,15 @@
+# Climb height above the current local position, in metres.
+float64 height
+# Maximum vertical speed in metres per second. Zero selects configured default.
+float64 speed
+# Reserved ROS REP-103 frame. Milestone 1 accepts an empty value or "map".
+string frame_id
+# Zero duration selects the configured timeout.
+builtin_interfaces/Duration timeout
+---
+bool success
+string message
+---
+float64 current_height
+float64 remaining_distance
+uint8 flight_state

@@ -1,0 +1,8 @@
+# Zero duration selects the configured landing timeout.
+builtin_interfaces/Duration timeout
+---
+bool success
+string message
+---
+float64 current_height
+uint8 flight_state

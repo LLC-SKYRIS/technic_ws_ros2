@@ -1,0 +1,14 @@
+# Linear velocity in a ROS REP-103 frame (ENU/FLU), metres per second.
+float64 vx
+float64 vy
+float64 vz
+# Yaw in radians. NaN preserves the current yaw.
+float64 yaw
+# Yaw rate in radians per second. NaN disables yaw-rate control.
+float64 yaw_rate
+string frame_id
+# Command expiry. Zero is rejected to prevent an unbounded stale command.
+builtin_interfaces/Duration valid_for
+---
+bool success
+string message

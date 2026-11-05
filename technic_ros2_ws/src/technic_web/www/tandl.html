@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Пульт полёта — Technic</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="js/roslib.js"></script>
+  <script src="js/ros2_compat.js"></script>
+  <style>
+    :root { --gap: 10px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    .card { padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); max-width: 900px; margin: 0 auto; }
+    .title { font-weight: 700; margin-bottom: 8px; display:flex; align-items:center; gap:8px; }
+    .muted { color:#6b7280; font-size:.9em; }
+    .tabs { display:flex; gap:8px; margin:6px 0 10px; }
+    .tab { padding:6px 10px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; cursor:pointer; }
+    .tab[aria-selected="true"] { border-color:#3b82f6; }
+    .grid { display:grid; grid-template-columns: repeat(3, minmax(0,200px)); gap: var(--gap); align-items:end; }
+    label { display:block; font-size:.86em; color:#374151; margin-bottom:4px; }
+    input[type="text"], select { width:100%; padding:7px 8px; border:1px solid #cbd5e1; border-radius:10px; }
+    .btn { padding:8px 12px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; cursor:pointer; line-height:1; }
+    .btn:hover { background:#f8fafc; }
+    .btn.primary { border-color:#3b82f6; }
+    .btn.warn { border-color:#ef4444; color:#ef4444; }
+    .row { display:flex; gap: var(--gap); align-items:center; }
+    .wrap { display:flex; flex-wrap:wrap; gap:6px; }
+    .right { text-align:right; }
+    code.preview { display:block; padding:8px 10px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; margin-top:8px; font-size:.9em; white-space:pre-wrap; }
+    .ok { color:#047857; }
+    .err { color:#b91c1c; }
+    hr { border:none; border-top:1px solid #eee; margin:14px 0; }
+    .kill { display:flex; align-items:center; gap:10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">
+      Пульт полёта (Technic)
+      <span class="muted" id="ros-conn">ROS: подключение...</span>
+    </div>
+
+    <!-- Kill-switch -->
+    <div class="kill">
+      <button id="killsw" class="btn warn" title="Экстренный дисарм / аварийная остановка">⚠️ Экстренная остановка (Kill-switch)</button>
+      <span class="muted">Сначала пытается <code>/emergency</code>, если нет — <code>/mavros/cmd/arming</code> (false). Двойное подтверждение.</span>
+    </div>
+
+    <hr />
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist" aria-label="Режимы">
+      <button id="tabTakeoff" class="tab" role="tab" aria-selected="true" aria-controls="panelTakeoff">Взлёт</button>
+      <button id="tabLand" class="tab" role="tab" aria-selected="false" aria-controls="panelLand">Посадка</button>
+    </div>
+
+    <!-- TAKEOFF PANEL -->
+    <section id="panelTakeoff" role="tabpanel" aria-labelledby="tabTakeoff">
+      <div class="grid">
+        <div>
+          <label for="alt">Высота z (м)</label>
+          <input id="alt" type="text" inputmode="decimal" placeholder="1.0" value="1.0" />
+        </div>
+        <div>
+          <label for="speed">Скорость (м/с)</label>
+          <input id="speed" type="text" inputmode="decimal" placeholder="0.5" value="0.5" />
+        </div>
+        <div>
+          <label for="yaw">Yaw (рад)</label>
+          <input id="yaw" type="text" inputmode="decimal" placeholder="0.0" value="0.0" />
+        </div>
+        <div>
+          <label for="frame">frame_id</label>
+          <select id="frame">
+            <option value="body" selected>body (в теле)</option>
+            <option value="map">map</option>
+            <option value="aruco_map">aruco_map</option>
+            <option value="local_origin">local_origin</option>
+          </select>
+        </div>
+        <div>
+          <label for="arm">Автоарм</label>
+          <select id="arm">
+            <option value="true" selected>true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+
+      <div class="row">
+        <div class="wrap" aria-label="быстрые высоты">
+          <button class="btn" data-set="#alt:1">z 1.0 м</button>
+          <button class="btn" data-set="#alt:1.5">z 1.5 м</button>
+          <button class="btn" data-set="#alt:2">z 2.0 м</button>
+          <button class="btn" data-set="#alt:3">z 3.0 м</button>
+        </div>
+        <div style="flex:1"></div>
+        <div class="right">
+          <button id="saveTo" class="btn">Сохранить</button>
+          <button id="runTo" class="btn primary">Взлёт</button>
+        </div>
+      </div>
+
+      <code class="preview" id="previewTo"></code>
+      <div id="statusTo" class="muted" style="margin-top:6px"></div>
+    </section>
+
+    <!-- LAND PANEL -->
+    <section id="panelLand" role="tabpanel" aria-labelledby="tabLand" hidden>
+      <div class="row seg" role="radiogroup" aria-label="Метод посадки">
+        <button class="btn" id="mLand" aria-pressed="true">/land (Trigger)</button>
+        <button class="btn" id="mNav0" aria-pressed="false">/navigate (z=0)</button>
+      </div>
+
+      <div id="navParams" style="margin-top:10px; display:none">
+        <div class="grid">
+          <div>
+            <label for="frameL">frame_id</label>
+            <select id="frameL">
+              <option value="map" selected>map</option>
+              <option value="body">body</option>
+              <option value="aruco_map">aruco_map</option>
+              <option value="local_origin">local_origin</option>
+            </select>
+          </div>
+          <div>
+            <label for="speedL">Скорость (м/с)</label>
+            <input id="speedL" type="text" inputmode="decimal" placeholder="0.5" value="0.5" />
+          </div>
+        </div>
+        <div class="muted" style="margin-top:6px">
+          Вариант <code>/navigate</code>: отправляет {x:0, y:0, z:0} в выбранной системе координат.
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+
+      <div class="row">
+        <div class="wrap">
+          <button id="saveLd" class="btn">Сохранить</button>
+          <button id="runLd" class="btn primary">Посадка</button>
+        </div>
+        <div style="flex:1"></div>
+      </div>
+
+      <code class="preview" id="previewLd"></code>
+      <div id="statusLd" class="muted" style="margin-top:6px"></div>
+    </section>
+
+  </div>
+
+  <script>
+    // ===== ROS connect =====
+    const rosUrl = 'ws://' + location.hostname + ':9090';
+    const ros = new ROSLIB.Ros({ url: rosUrl });
+    const rosConn = document.getElementById('ros-conn');
+    ros.on('connection', () => rosConn.textContent = 'ROS: connected (' + rosUrl + ')');
+    ros.on('error', (e) => rosConn.textContent = 'ROS error: ' + e);
+    ros.on('close', () => rosConn.textContent = 'ROS: closed');
+
+    // ===== Services =====
+    const navigateSrv = new ROSLIB.Service({ ros, name: '/navigate', serviceType: 'technic_web/srv/Navigate' });
+    const landSrv     = new ROSLIB.Service({ ros, name: '/land', serviceType: 'std_srvs/srv/Trigger' });
+    const emergSrv    = new ROSLIB.Service({ ros, name: '/emergency', serviceType: 'std_srvs/srv/Trigger' });
+    const armSrv      = new ROSLIB.Service({ ros, name: TECHNIC_MAVROS + '/cmd/arming', serviceType: 'mavros_msgs/srv/CommandBool' });
+
+    // ===== Params (history/compat) =====
+    const toParamJSON = new ROSLIB.Param({ ros, name: '/navigate_ui/req_json' });
+    const toParamText = new ROSLIB.Param({ ros, name: '/navigate_ui/req_str' });
+    const ldModeParam = new ROSLIB.Param({ ros, name: '/land_ui/mode' }); // 'land' | 'navigate'
+    const ldReqText   = new ROSLIB.Param({ ros, name: '/land_ui/req_str' });
+    const ldNavJSON   = new ROSLIB.Param({ ros, name: '/land_ui/nav_req_json' });
+
+    // ===== Tabs =====
+    const tabTakeoff = document.getElementById('tabTakeoff');
+    const tabLand    = document.getElementById('tabLand');
+    const panelTakeoff = document.getElementById('panelTakeoff');
+    const panelLand    = document.getElementById('panelLand');
+    function showTab(which){
+      const isTo = which === 'to';
+      tabTakeoff.setAttribute('aria-selected', String(isTo));
+      tabLand.setAttribute('aria-selected', String(!isTo));
+      panelTakeoff.hidden = !isTo;
+      panelLand.hidden = isTo;
+    }
+    tabTakeoff.addEventListener('click', () => showTab('to'));
+    tabLand.addEventListener('click', () => showTab('ld'));
+
+    // ===== Helpers =====
+    const $ = (sel) => document.querySelector(sel);
+    const norm = (v) => String(v ?? '').trim().replace(',', '.');
+
+    // ===== Takeoff =====
+    function buildTakeoffReq(){
+      const z   = parseFloat(norm($('#alt').value));
+      const spd = parseFloat(norm($('#speed').value));
+      const yaw = parseFloat(norm($('#yaw').value));
+      const frame = $('#frame').value || 'body';
+      const autoArm = $('#arm').value === 'true';
+
+      return {
+        x: 0.0, y: 0.0, z: isNaN(z) ? 1.0 : z,
+        yaw: isNaN(yaw) ? 0.0 : yaw,
+        speed: isNaN(spd) ? 0.5 : spd,
+        frame_id: frame,
+        auto_arm: autoArm
+      };
+    }
+    function validateTakeoff(r){
+      if (!(r.z>0)) throw new Error('Высота z должна быть > 0');
+      if (!(r.speed>0)) throw new Error('Скорость должна быть > 0');
+      if (!r.frame_id) throw new Error('frame_id не задан');
+    }
+    function renderPreviewTo(){
+      const r = buildTakeoffReq();
+      const yaml = `{x: 0.0, y: 0.0, z: ${r.z}, yaw: ${r.yaw}, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: ${r.auto_arm ? 'true':'false'}}`;
+      $('#previewTo').textContent = `rosservice call /navigate "${yaml}"`;
+    }
+    ['alt','speed','yaw','frame','arm'].forEach(id=>{
+      $('#'+id).addEventListener('input', renderPreviewTo);
+      $('#'+id).addEventListener('change', renderPreviewTo);
+    });
+    // quick-set for takeoff
+    document.querySelectorAll('[data-set]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const [sel,val]=btn.dataset.set.split(':');
+        const el=$(sel);
+        if(el){ el.value=val; renderPreviewTo(); }
+      });
+    });
+    renderPreviewTo();
+
+    // ===== Land =====
+    let landMode = 'land'; // 'land' | 'navigate'
+    const mLand = document.getElementById('mLand');
+    const mNav0 = document.getElementById('mNav0');
+    const navParams = document.getElementById('navParams');
+    function setLandMode(m){
+      landMode = m;
+      mLand.setAttribute('aria-pressed', String(m==='land'));
+      mNav0.setAttribute('aria-pressed', String(m==='navigate'));
+      navParams.style.display = (m==='navigate') ? '' : 'none';
+      renderPreviewLd();
+    }
+    mLand.addEventListener('click', ()=> setLandMode('land'));
+    mNav0.addEventListener('click', ()=> setLandMode('navigate'));
+
+    function buildLandNavReq(){
+      const frame = $('#frameL').value || 'map';
+      const spd = parseFloat(norm($('#speedL').value));
+      return {
+        x:0.0, y:0.0, z:0.0,
+        yaw:0.0,
+        speed: isNaN(spd) ? 0.5 : spd,
+        frame_id: frame,
+        auto_arm: false
+      };
+    }
+    function renderPreviewLd(){
+      if(landMode==='land'){
+        $('#previewLd').textContent = 'rosservice call /land "{}"';
+      } else {
+        const r = buildLandNavReq();
+        const yaml = `{x: 0.0, y: 0.0, z: 0.0, yaw: 0.0, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: false}`;
+        $('#previewLd').textContent = `rosservice call /navigate "${yaml}"`;
+      }
+    }
+    ['frameL','speedL'].forEach(id=>{
+      $('#'+id).addEventListener('input', renderPreviewLd);
+      $('#'+id).addEventListener('change', renderPreviewLd);
+    });
+    renderPreviewLd();
+
+    // ===== SAVE & RUN =====
+    document.getElementById('saveTo').addEventListener('click', async ()=>{
+      const status = document.getElementById('statusTo');
+      status.textContent = 'Сохранение параметров…';
+      try{
+        const r = buildTakeoffReq(); validateTakeoff(r);
+        const yaml = `{x: 0.0, y: 0.0, z: ${r.z}, yaw: ${r.yaw}, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: ${r.auto_arm ? 'true':'false'}}`;
+        await Promise.all([
+          new Promise((res,rej)=> toParamJSON.set(JSON.stringify(r), res, rej)),
+          new Promise((res,rej)=> toParamText.set(yaml, res, rej)),
+        ]);
+        status.innerHTML = '<span class="ok">Сохранено.</span>';
+      }catch(e){
+        status.innerHTML = '<span class="err">Ошибка: '+e+'</span>';
+      }
+    });
+
+    document.getElementById('runTo').addEventListener('click', async ()=>{
+      const status = document.getElementById('statusTo');
+      status.textContent = 'Отправка команды взлёта…';
+      try{
+        const r = buildTakeoffReq(); validateTakeoff(r);
+        const req = new ROSLIB.ServiceRequest(r);
+        navigateSrv.callService(req, (res)=>{
+          const ok = res && (res.success===true || res.success===1);
+          status.innerHTML = (ok?'<span class="ok">OK:</span> ':'<span class="err">Ошибка:</span> ')+(res&&res.message?res.message:'');
+        }, (err)=>{
+          status.innerHTML = '<span class="err">Ошибка вызова /navigate:</span> '+err;
+        });
+      }catch(e){
+        status.innerHTML = '<span class="err">Ошибка: '+e+'</span>';
+      }
+    });
+
+    document.getElementById('saveLd').addEventListener('click', async ()=>{
+      const status = document.getElementById('statusLd');
+      status.textContent = 'Сохранение параметров…';
+      try{
+        if(landMode==='land'){
+          await Promise.all([
+            new Promise((res,rej)=> ldModeParam.set('land', res, rej)),
+            new Promise((res,rej)=> ldReqText.set('{}', res, rej)),
+          ]);
+        } else {
+          const r = buildLandNavReq();
+          const yaml = `{x: 0.0, y: 0.0, z: 0.0, yaw: 0.0, speed: ${r.speed}, frame_id: '${r.frame_id}', auto_arm: false}`;
+          await Promise.all([
+            new Promise((res,rej)=> ldModeParam.set('navigate', res, rej)),
+            new Promise((res,rej)=> ldNavJSON.set(JSON.stringify(r), res, rej)),
+            new Promise((res,rej)=> ldReqText.set(yaml, res, rej)),
+          ]);
+        }
+        status.innerHTML = '<span class="ok">Сохранено.</span>';
+      }catch(e){
+        status.innerHTML = '<span class="err">Ошибка: '+e+'</span>';
+      }
+    });
+
+    document.getElementById('runLd').addEventListener('click', async ()=>{
+      const status = document.getElementById('statusLd');
+      status.textContent = 'Отправка команды посадки…';
+      try{
+        if(landMode==='land'){
+          const req = new ROSLIB.ServiceRequest({});
+          landSrv.callService(req, (res)=>{
+            const ok = res && (res.success===true || res.success===1);
+            status.innerHTML = (ok?'<span class="ok">OK:</span> ':'<span class="err">Ошибка:</span> ')+(res&&res.message?res.message:'');
+          }, (err)=>{
+            status.innerHTML = '<span class="err">Ошибка вызова /land:</span> '+err;
+          });
+        } else {
+          const r = buildLandNavReq();
+          const req = new ROSLIB.ServiceRequest(r);
+          navigateSrv.callService(req, (res)=>{
+            const ok = res && (res.success===true || res.success===1);
+            status.innerHTML = (ok?'<span class="ok">OK (navigate z=0):</span> ':'<span class="err">Ошибка:</span> ')+(res&&res.message?res.message:'');
+          }, (err)=>{
+            status.innerHTML = '<span class="err">Ошибка вызова /navigate:</span> '+err;
+          });
+        }
+      }catch(e){
+        status.innerHTML = '<span class="err">Ошибка: '+e+'</span>';
+      }
+    });
+
+    // ===== Kill-switch =====
+    document.getElementById('killsw').addEventListener('click', ()=>{
+      const really = confirm('Экстренная остановка: немедленный дисарм! Продолжить?');
+      if(!really) return;
+      const really2 = confirm('Подтвердите ещё раз: экстренная остановка будет выполнена СЕЙЧАС.');
+      if(!really2) return;
+
+      const setStatus = (msg, ok=false)=> {
+        const box = panelLand.hidden ? document.getElementById('statusTo') : document.getElementById('statusLd');
+        box.innerHTML = (ok?'<span class="ok">OK:</span> ':'<span class="err">Стоп:</span> ')+msg;
+      };
+
+      // 1) /emergency
+      emergSrv.callService(new ROSLIB.ServiceRequest({}), (res)=>{
+        if(res && (res.success===true || res.success===1)){
+          setStatus(res.message || 'Emergency выполнен', true);
+        } else {
+          // 2) fallback: MAVROS disarm
+          armSrv.callService(new ROSLIB.ServiceRequest({ value: false }), (r2)=>{
+            const ok = r2 && (r2.success===true || r2.success===1);
+            setStatus(ok ? 'Дисарм через MAVROS' : 'Не удалось дисармить через MAVROS');
+          }, (err2)=> setStatus('Ошибка вызова /mavros/cmd/arming: '+err2));
+        }
+      }, (err)=>{
+        armSrv.callService(new ROSLIB.ServiceRequest({ value: false }), (r2)=>{
+          const ok = r2 && (r2.success===true || r2.success===1);
+          setStatus(ok ? 'Дисарм через MAVROS' : 'Не удалось дисармить через MAVROS');
+        }, (err2)=> setStatus('Ошибка вызова /mavros/cmd/arming: '+err2));
+      });
+    });
+
+  </script>
+</body>
+</html>
